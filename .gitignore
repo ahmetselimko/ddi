@@ -1,0 +1,6 @@
+.env
+oturumlar/
+__pycache__/
+*.pyc
+venv/
+.venv/

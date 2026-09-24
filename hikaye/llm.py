@@ -1,0 +1,142 @@
+"""
+Dil modeli arka uçları.
+
+  gemini  Google Gemini API (.env içinde GEMINI_API_KEY gerekir)
+  yerel   OpenAI uyumlu bir sunucu: Ollama, vLLM, LM Studio...
+          Hocanın GPU'lu makinesinde çalışan bir model de bu yolla bağlanır.
+  sahte   Ağ kullanmayan, dünyadaki id'lerle geçerli yanıt üreten model — testler için
+"""
+import json
+import os
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class LLMYanit:
+    metin: str
+    sure: float
+    girdi_token: int | None = None
+    cikti_token: int | None = None
+
+
+def env_yukle(yol: Path) -> None:
+    """ANAHTAR=değer satırlarını okur; zaten tanımlı ortam değişkenlerini ezmez."""
+    if not yol.exists():
+        return
+    for satir in yol.read_text(encoding="utf-8").splitlines():
+        satir = satir.strip()
+        if not satir or satir.startswith("#") or "=" not in satir:
+            continue
+        anahtar, deger = satir.split("=", 1)
+        os.environ.setdefault(anahtar.strip(), deger.strip().strip("\"'"))
+
+
+class GeminiLLM:
+    def __init__(self, model: str):
+        from google import genai
+        from google.genai import types
+
+        anahtar = os.environ.get("GEMINI_API_KEY")
+        if not anahtar:
+            raise RuntimeError("GEMINI_API_KEY tanımlı değil; .env dosyasına ekleyin (.env.example'a bakın).")
+        self._istemci = genai.Client(api_key=anahtar)
+        self._types = types
+        self.model = model
+        self.ad = f"gemini:{model}"
+
+    def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
+        ayar = self._types.GenerateContentConfig(
+            system_instruction=sistem,
+            temperature=sicaklik,
+            response_mime_type="application/json" if json_mod else "text/plain",
+            # Oyun akıcı olsun diye düşünme kapalı; kalite farkı ayrıca denenebilir
+            thinking_config=self._types.ThinkingConfig(thinking_budget=0),
+        )
+        bas = time.monotonic()
+        yanit = self._istemci.models.generate_content(model=self.model, contents=kullanici, config=ayar)
+        kullanim = yanit.usage_metadata
+        return LLMYanit(
+            metin=yanit.text or "",
+            sure=time.monotonic() - bas,
+            girdi_token=getattr(kullanim, "prompt_token_count", None),
+            cikti_token=getattr(kullanim, "candidates_token_count", None),
+        )
+
+
+class YerelLLM:
+    def __init__(self, model: str, taban_url: str, anahtar: str = ""):
+        import requests
+
+        self._requests = requests
+        self.taban_url = taban_url.rstrip("/")
+        self.model = model
+        self._anahtar = anahtar
+        self.ad = f"yerel:{model}"
+
+    def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
+        govde = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": sistem},
+                {"role": "user", "content": kullanici},
+            ],
+            "temperature": sicaklik,
+        }
+        if json_mod:
+            govde["response_format"] = {"type": "json_object"}
+        basliklar = {"Authorization": f"Bearer {self._anahtar}"} if self._anahtar else {}
+
+        bas = time.monotonic()
+        r = self._requests.post(f"{self.taban_url}/chat/completions",
+                                json=govde, headers=basliklar, timeout=300)
+        r.raise_for_status()
+        veri = r.json()
+        kullanim = veri.get("usage") or {}
+        return LLMYanit(
+            metin=veri["choices"][0]["message"]["content"] or "",
+            sure=time.monotonic() - bas,
+            girdi_token=kullanim.get("prompt_tokens"),
+            cikti_token=kullanim.get("completion_tokens"),
+        )
+
+
+class SahteLLM:
+    """Ağ kullanmaz. Motorun ve bellek stratejilerinin uçtan uca testi için."""
+
+    def __init__(self, dunya):
+        self.ad = "sahte"
+        self._mekanlar = list(dunya.mekanlar)
+        self._karakterler = list(dunya.karakterler)
+        self.cagri_sayisi = 0
+
+    def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
+        self.cagri_sayisi += 1
+        n = self.cagri_sayisi
+        if not json_mod:
+            return LLMYanit(metin=f"Özet {n}: oyuncu kasabada iz sürüyor.", sure=0.0)
+        k = self._karakterler[n % len(self._karakterler)]
+        veri = {
+            "sahne": f"Sahne {n}. Rüzgâr tuz taşıyor. \"Buradayım,\" diyor biri.",
+            "mekan": self._mekanlar[n % len(self._mekanlar)],
+            "karakterler": [k],
+            "replikler": [{"karakter": k, "metin": "Buradayım."}],
+            "yeni_olgular": [{"metin": f"Sahte olgu {n}: körük onarıldı.", "ilgili": [k]}],
+            "secenekler": [f"Seçenek {n}.{i}" for i in (1, 2, 3)],
+        }
+        return LLMYanit(metin=json.dumps(veri, ensure_ascii=False), sure=0.0)
+
+
+def llm_olustur(tur: str, dunya=None, model: str | None = None):
+    if tur == "gemini":
+        return GeminiLLM(model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"))
+    if tur == "yerel":
+        return YerelLLM(
+            model=model or os.environ.get("YEREL_LLM_MODEL", "qwen2.5:7b-instruct"),
+            taban_url=os.environ.get("YEREL_LLM_URL", "http://localhost:11434/v1"),
+            anahtar=os.environ.get("YEREL_LLM_ANAHTAR", ""),
+        )
+    if tur == "sahte":
+        return SahteLLM(dunya)
+    raise ValueError(f"Bilinmeyen model arka ucu: {tur}")

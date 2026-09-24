@@ -1,0 +1,3 @@
+google-genai>=1.0   # --llm gemini
+requests>=2.31      # --llm yerel
+PyYAML>=6.0

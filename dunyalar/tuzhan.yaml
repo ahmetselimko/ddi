@@ -1,0 +1,137 @@
+# Demo dünya. Olgular somut ve kontrol edilebilir seçildi (sayılar, kim neyi
+# biliyor, hangi kapı kilitli): tutarlılık ölçümü bunlara karşı yapılacak.
+# Karakterlerin konuşma üslupları da ölçülebilir işaretler taşıyor
+# ("evlat", "abi/abla", "sevgili dostum", atasözü, tarih/sayı).
+
+ad: Tuzhan
+ton: >-
+  Gizemli, tozlu ve sıcak. Masalsı ama ciddi; mizah küçük anlarda.
+  Şiddet ancak kaçınılmazsa ve ölçülü.
+oyuncu: >-
+  Kasabaya yeni gelen genç bir haritacı. Kırk gündür haber alınamayan Sarıca
+  kervanının izini sürmek için bir tüccar loncası tarafından tutuldu. Yanında
+  bir pusula, boş bir harita defteri ve on beş akçe var.
+giris: >-
+  Güneş batarken tuz çölünü aşıp Tuzhan'a varıyorsun. Kervansarayın avlusu
+  bomboş; ahırda tek bir at bile yok. Kapının önünde elinde fenerle biri seni
+  bekliyor.
+baslangic_mekan: han
+
+mekanlar:
+  - id: han
+    ad: Tuzhan Kervansarayı
+    tanim: Kasabanın ortasındaki taş kervansaray. Avlu, ahır, mutfak ve üst katta on iki oda.
+  - id: demirhane
+    ad: Oruç'un Demirhanesi
+    tanim: Hanın arkasında, kömür kokulu dar bir atölye. Duvarlarda nal ve zincir asılı.
+  - id: katiplik
+    ad: Kâtiplik
+    tanim: Kasabanın kayıtlarının tutulduğu tek odalı kerpiç yapı. Raflar defter dolu.
+  - id: tuz_golu
+    ad: Kuru Tuz Gölü
+    tanim: Kasabanın doğusunda, ufka kadar uzanan beyaz, çatlak tuz düzlüğü.
+  - id: kule
+    ad: Yıkık Gözetleme Kulesi
+    tanim: Gölün kıyısındaki eski taş kule.
+
+karakterler:
+  - id: nehir
+    ad: Nehir Hanım
+    adlar: [nehir, hancı]
+    tanim: Hanın sahibi, elli yaşlarında, iri yapılı bir kadın.
+    kisilik: Sert ve şüpheci ama misafirini korur. Kasabanın dedikodusunu bilir, kolay paylaşmaz.
+    konusma: >-
+      Kısa, emir kipinde cümleler. Herkese "evlat" diye hitap eder. Soru
+      sorulunca önce karşı soru sorar.
+    ornek_replikler:
+      - "Otur, evlat. Önce çorba, sonra soru."
+      - "Kim gönderdi seni? Doğru söyle."
+
+  - id: selvi
+    ad: Kâtip Selvi
+    adlar: [selvi, kâtip]
+    tanim: Kasabanın resmî kâtibi, yirmili yaşlarında, parmakları mürekkep lekeli bir genç kadın.
+    kisilik: Meraklı, titiz, kuralcı. Kayıp kervanı ciddiye alan tek kişi.
+    konusma: >-
+      Uzun, kitabi cümleler kurar; sık sık tarih ve sayı verir. Heyecanlanınca
+      cümlesini yarıda bırakıp yenisine başlar.
+    ornek_replikler:
+      - "Sarıca kervanı bu ayın üçünde, yani tam kırk gün evvel, deftere kaydedildi ve o günden beri..."
+      - "Usulen önce adınızı yazmam gerekiyor; kuraldır, kusura bakmayın."
+
+  - id: oruc
+    ad: Demirci Oruç
+    adlar: [oruç, demirci]
+    tanim: Altmışlarında, kolları yanık izleriyle dolu, yavaş hareket eden bir demirci.
+    kisilik: Az konuşur, çok dinler. Kimseye borçlu kalmaz. Tuz gölünden korkar ama bunu saklar.
+    konusma: >-
+      Çok kısa cevaplar verir, sık sık atasözü kullanır. Kimseye adıyla hitap
+      etmez.
+    ornek_replikler:
+      - "Demir tavında dövülür."
+      - "Sorma. Bilmediğin iyi."
+
+  - id: tekin
+    ad: Tekin
+    adlar: [tekin, çocuk, oğlan]
+    tanim: Oruç'un on yaşındaki yeğeni. Çıplak ayaklı, her yere giren bir çocuk.
+    kisilik: Cesur, lafı bitmeyen, sır tutamayan. Mavi ışıkları gördüğüne yemin eder.
+    konusma: >-
+      Nefes almadan konuşur, cümleleri "ve sonra" ile birbirine bağlar.
+      Büyüklere "abi" ya da "abla" der.
+    ornek_replikler:
+      - "Abi, ben gördüm, yemin ederim gördüm ve sonra ışık söndü ve sonra..."
+      - "Amcama söyleme ama!"
+
+  - id: yabanci
+    ad: Mavi Pelerinli Yabancı
+    adlar: [yabancı, pelerinli]
+    tanim: İki gün önce kasabaya gelen, yüzünü pelerininin gölgesinde tutan biri.
+    kisilik: Sakin, alaycı, her şeyi bildiğini ima eder. Asıl amacını saklar.
+    konusma: Sorulara soruyla cevap verir. Nazik ama mesafeli; "sevgili dostum" der.
+    ornek_replikler:
+      - "Neden soruyorsun, sevgili dostum? Cevabı zaten bilmiyor musun?"
+
+olgular:
+  - id: o1
+    metin: Hanın üst katında on iki oda var. Yedi numaralı oda her zaman kilitli; anahtarı yalnızca Nehir Hanım'da.
+    ilgili: [han, nehir]
+  - id: o2
+    metin: Nehir Hanım'ın sol elinde üç parmak eksik; yıllar önceki bir kervan baskınında kaybetti.
+    ilgili: [nehir]
+  - id: o3
+    metin: Sarıca kervanı kırk gün önce Tuzhan'dan doğuya, tuz gölünün ötesine doğru yola çıktı ve bir daha haber alınmadı. Kervanda on bir deve ve altı kişi vardı.
+    ilgili: [tuz_golu]
+  - id: o4
+    metin: Kervanlar normalde her on günde bir Tuzhan'a uğrar; kırk gündür tek bir kervan gelmedi.
+    ilgili: [han]
+  - id: o5
+    metin: Oruç'un körüğü kırık; üç gündür onarım için parça bekliyor, bu yüzden demirhane soğuk.
+    ilgili: [oruc, demirhane]
+  - id: o6
+    metin: Tekin, Oruç'un yeğeni; anne babası yok, amcasıyla birlikte demirhanede yatıp kalkıyor.
+    ilgili: [tekin, oruc, demirhane]
+  - id: o7
+    metin: Tuz gölünde bazı geceler mavi ışıklar görülüyor; kasabalılar bundan konuşmaktan kaçınıyor.
+    ilgili: [tuz_golu]
+  - id: o8
+    metin: Yabancı iki gün önce geldi, adını kimseye söylemedi. Yedi numaralı odayı istedi ama Nehir Hanım vermedi.
+    ilgili: [yabanci, nehir, han]
+  - id: o9
+    metin: Selvi kayıt defterlerini kâtiplikte kilitli bir sandıkta saklıyor; sandığın anahtarı boynunda asılı.
+    ilgili: [selvi, katiplik]
+  - id: o10
+    metin: Kulenin merdiveni yarıda çökük; tepeye ancak iple çıkılabilir.
+    ilgili: [kule]
+  - id: o11
+    metin: Kasabadaki kuyu suyu tuzlu; içme suyu her sabah dağdaki pınardan eşekle taşınıyor.
+    ilgili: []
+  - id: o12
+    metin: Handa bir gecelik oda beş akçe, akşam yemeği bir akçe.
+    ilgili: [han, nehir]
+  - id: o13
+    metin: Selvi, Sarıca kervanının kâhyası Yusuf'un kuzeni.
+    ilgili: [selvi]
+  - id: o14
+    metin: Oruç gençliğinde kervan muhafızıydı; tuz gölünü bir kez geçmiş ama o yolculuktan hiç söz etmez.
+    ilgili: [oruc, tuz_golu]
