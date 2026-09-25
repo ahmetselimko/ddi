@@ -1,8 +1,14 @@
 # Türkçe İnteraktif Hikâye Oyunu — Uzun Anlatıda Tutarlılık
 
 Oyuncunun seçimleriyle ilerleyen, sahnelerini bir dil modelinin yazdığı Türkçe
-bir hikâye oyunu. Araştırma sorusu: **hikâye uzadıkça karakterlerin ve olayların
-tutarlı kalması için modele neyi hatırlatmak gerekir?**
+bir hikâye oyunu. Odak noktası: hikâye uzadıkça karakterlerin ve olayların tutarlı
+kalmasını sağlamak ve bunu ölçmek.
+
+- **Sağlamak:** model her turda hikâyenin tamamını görür (sohbetin hatırlaması gibi);
+  bir editör model her sahneyi denetler ve bulgularını yazara geri verir; bazı
+  sorunları da kod doğrudan yakalar.
+- **Ölçmek:** editörün ve kodun bulduğu her şey (çelişkiler, karakter sapmaları,
+  bilgi sızıntıları, vaatler) oturum kaydına yazılır.
 
 ## Hızlı başlangıç
 
@@ -23,7 +29,8 @@ python -m unittest discover testler -v
 
 Her turda **oyun motoru** ([hikaye/motor.py](hikaye/motor.py)):
 
-1. **Bellek stratejisi** ile modele verilecek bağlamı kurar
+1. Modele verilecek bağlamı kurar: varsayılan olarak **tüm sahneler**, dünyadan ilgili olgular
+   ve sahnedeki karakterlerin kartları
 2. Bağlamı, editörün önceki turdan notlarını ve oyuncunun eylemini **yazar modele** gönderir
 3. Modelin JSON yanıtını doğrular ve sahneyi anlatım/replik parçalarından kendisi kurar
 4. Sahneyi **editör modele** denetletir (aşağıda)
@@ -75,14 +82,21 @@ Yazar, editör ve özet farklı modellerle çalışabilir (`--editor-model`, `--
 ya da `.env` içinde `EDITOR_MODEL`, `OZET_MODEL`). Özet basit bir iş, ucuz model yeter;
 editör ise ölçümlerin kaynağı, zayıf model ölçümü de zayıflatır.
 
-## Bellek stratejileri (deneyin bağımsız değişkeni)
+## Bellek
 
 | `--bellek` | Modele verilen |
 |---|---|
-| `son` | Son 2 sahne + sahnedeki karakterlerin kartları (taban çizgisi) |
-| `ozet` | + her sahneden sonra güncellenen hikâye özeti |
-| `kanon` | + dünya ve oyun olguları arasından BM25 ile getirilen 6 olgu |
-| `ozet+kanon` | ikisi birden (varsayılan) |
+| `tam` (varsayılan) | Hikâyenin **tüm** sahneleri + dünya ve oyun olguları arasından BM25 ile getirilen 6 olgu |
+| `son` | Yalnızca son 2 sahne |
+| `ozet` | Son 2 sahne + her sahneden sonra güncellenen hikâye özeti |
+| `kanon` | Son 2 sahne + BM25 ile getirilen olgular |
+| `ozet+kanon` | Son 2 sahne + ikisi birden |
+
+Tüm seçeneklerde sahnedeki karakterlerin kartları ve oyuncunun şimdiye kadarki
+eylemleri de gider. `tam`, sohbet uygulamalarının "hatırlaması" ile aynı şeydir:
+her turda o ana kadarki her şey yeniden gönderilir. Gemini 2.5 Flash'ın bağlam
+penceresi uzun bir oyunun tamamını rahatça alır. Diğerleri, oyun çok uzarsa maliyeti
+düşürmek ya da karşılaştırma yapmak için var.
 
 Getirim ([hikaye/getirim.py](hikaye/getirim.py)) Türkçeye göre ayarlı: `I/İ` doğru
 küçültülür, kesme ekleri atılır, kök olarak ilk 5 harf alınır (F5 kök bulma).
@@ -132,12 +146,8 @@ oturumlar/           oyun kayıtları (git'e girmez)
 
 ## Yol haritası
 
-- [x] **Aşama 1:** oynanabilir çekirdek, 4 bellek stratejisi, kayıt
-- [x] **Editör:** kanona karşı iddia sınıflama, vaat defteri, karakter değişimleri, zanaat notları
-- [ ] **Aşama 2:** ölçüm
-  - oyundan bağımsız değerlendirici: kayıtlı oturumları sonradan aynı editörle tarar, böylece
-    editörsüz oyunlar da aynı ölçüyle ölçülür
-  - editörün kendi doğruluğu: işaretlediği çelişkilerden bir örneklemin elle kontrolü
-  - karakter sesi: replikten konuşanı tahmin eden sınıflandırıcı; üretilen replikler doğru karaktere atanıyor mu
-  - vaatler: kaç vaat açıldı, kaçı çözüldü, ortalama kaç sahne açık kaldı
-- [ ] **Aşama 3:** deney: bellek (4) × editör (3) koşulunda, aynı tohumlarla N turluk otomatik oyunlar, sonuç tabloları
+- [x] Oynanabilir çekirdek, tüm hikâyeyi hatırlayan bellek, kayıt
+- [x] Editör: kanona karşı iddia sınıflama, karakter denetimi, vaat defteri, zanaat notları
+- [x] Kodla denetimler: oyuncu adına konuşma, tanışma, tekrar, örnek replik kopyası
+- [ ] Oturum raporu: bir oyunun kaydından çelişki, sapma, sızıntı ve vaat sayılarını çıkaran betik
+- [ ] İsteğe bağlı: editörün kendi doğruluğunun elle kontrolü; bellek seçeneklerinin karşılaştırılması

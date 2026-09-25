@@ -1,14 +1,19 @@
 """
-Bellek stratejileri — deneyin bağımsız değişkeni.
+Bellek stratejileri: modele her turda hikâyenin ne kadarının gideceği.
 
-Her strateji modele verilecek bağlamı kurar. Hepsi son birkaç sahneyi
-olduğu gibi verir (kısa süreli bellek) ve sahnedeki karakterlerin
-kartlarını ekler; fark uzun süreli bellekte:
+  tam         (varsayılan) hikâyenin TÜM sahneleri, sohbetin hatırlaması gibi,
+              + dünya ve oyun olguları arasından BM25 ile getirilenler
 
-  son         yalnızca son sahneler — taban çizgisi
+Aşağıdakiler bağlamı kısaltır; çok uzun oyunlarda maliyet ya da hız sorun
+olursa, ya da karşılaştırma yapmak istenirse kullanılır. Hepsi son 2 sahneyi
+olduğu gibi verir:
+
+  son         yalnızca son sahneler
   ozet        + her sahneden sonra güncellenen hikâye özeti
-  kanon       + dünya ve oyun olguları arasından BM25 ile getirilenler
+  kanon       + BM25 ile getirilen olgular
   ozet+kanon  ikisi birden
+
+Tüm stratejilerde sahnedeki karakterlerin kartları da gider.
 """
 from dataclasses import dataclass, field
 
@@ -17,7 +22,7 @@ from .dunya import Dunya
 from .durum import Durum, Sahne
 from .getirim import BM25, kelimeler, kucult
 
-STRATEJILER = ("son", "ozet", "kanon", "ozet+kanon")
+STRATEJILER = ("tam", "son", "ozet", "kanon", "ozet+kanon")
 
 
 @dataclass
@@ -32,17 +37,17 @@ class Baglam:
 
 
 class Bellek:
-    def __init__(self, strateji: str = "son", son_n: int = 2, olgu_k: int = 6):
+    def __init__(self, strateji: str = "tam", son_n: int = 2, olgu_k: int = 6):
         if strateji not in STRATEJILER:
             raise ValueError(f"Bilinmeyen strateji: {strateji} (seçenekler: {', '.join(STRATEJILER)})")
         self.strateji = strateji
         self.ozet_acik = "ozet" in strateji
-        self.kanon_acik = "kanon" in strateji
-        self.son_n = son_n
+        self.kanon_acik = "kanon" in strateji or strateji == "tam"
+        self.son_n = None if strateji == "tam" else son_n      # None: tüm sahneler
         self.olgu_k = olgu_k
 
     def baglam(self, dunya: Dunya, durum: Durum, eylem: str | None) -> Baglam:
-        son = durum.sahneler[-self.son_n:]
+        son = durum.sahneler[-self.son_n:] if self.son_n else list(durum.sahneler)
         karakter_idleri = _ilgili_karakterler(dunya, son[-1:], eylem)
 
         olgular, olgu_idleri = [], []

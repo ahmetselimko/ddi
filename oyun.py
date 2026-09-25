@@ -1,9 +1,9 @@
 """
 Türkçe interaktif hikâye oyunu — komut satırı.
 
-  python oyun.py                                   # demo dünya, Gemini, özet+kanon bellek, tam editör
+  python oyun.py                                   # demo dünya, Gemini, tüm hikâyeyi hatırlar, tam editör
   python oyun.py --ayrinti                         # editörün bulgularını da göster
-  python oyun.py --bellek son --editor yok         # taban çizgisi: yalnızca son sahneler, editörsüz
+  python oyun.py --bellek son --editor yok         # yalnızca son sahneler, editörsüz
   python oyun.py --llm yerel --model qwen2.5:7b    # OpenAI uyumlu yerel sunucu (Ollama, vLLM)
   python oyun.py --llm sahte --otomatik 10         # ağsız deneme, 10 tur kendi oynar
 
@@ -87,7 +87,8 @@ def main() -> None:
     ap.add_argument("--model", help="Yazar modelin adı (verilmezse .env ya da arka ucun varsayılanı)")
     ap.add_argument("--editor-model", help="Editör için ayrı model (varsayılan: .env EDITOR_MODEL ya da yazarınki)")
     ap.add_argument("--ozet-model", help="Özet için ayrı model (varsayılan: .env OZET_MODEL ya da yazarınki)")
-    ap.add_argument("--bellek", choices=STRATEJILER, default="ozet+kanon", help="Bellek stratejisi")
+    ap.add_argument("--bellek", choices=STRATEJILER, default="tam",
+                    help="tam: modele tüm hikâye gider (varsayılan); diğerleri bağlamı kısaltır")
     ap.add_argument("--editor", choices=MODLAR, default="tam",
                     help="yok: editörsüz · denetim: tutarlılık + vaat defteri · tam: + usta yazar ölçütleri")
     ap.add_argument("--ayrinti", action="store_true", help="Her sahneden sonra editörün bulgularını göster")

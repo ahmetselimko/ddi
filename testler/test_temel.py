@@ -183,6 +183,17 @@ class BellekTesti(unittest.TestCase):
         baglam = Bellek("son").baglam(dunya, motor.durum, "Oruç'a körüğü sor")
         self.assertIn("oruc", baglam.karakter_idleri)
 
+    def test_tam_bellek_tum_sahneleri_verir(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("tam"))
+        sahne = motor.basla()
+        for _ in range(4):
+            sahne = motor.oyna(sahne.secenekler[0])
+        baglam = Bellek("tam").baglam(dunya, motor.durum, "yedi numaralı oda")
+        self.assertEqual(len(baglam.son_sahneler), 5)
+        self.assertTrue(baglam.olgular)
+        self.assertEqual(len(Bellek("son").baglam(dunya, motor.durum, "x").son_sahneler), 2)
+
     def test_taban_cizgisi_olgu_getirmez(self):
         dunya = dunya_yukle(DUNYA_YOLU)
         motor = Motor(dunya, SahteLLM(dunya), Bellek("son"))

@@ -128,7 +128,7 @@ def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None =
         bolumler.append("Hikâyenin ilk sahnesini yaz. Açılış metnini aynen tekrarlama, oradan devam et. "
                         "Oyuncu henüz bir şey söylemedi ya da yapmadı.")
     else:
-        bolumler.append("[SON SAHNELER]\n" + "\n\n".join(baglam.son_sahneler))
+        bolumler.append("[ÖNCEKİ SAHNELER]\n" + "\n\n".join(baglam.son_sahneler))
         bolumler.append(f"[OYUNCUNUN EYLEMİ]\n{eylem}")
         bolumler.append("Bu eylemin sonucunu anlatan bir sonraki sahneyi yaz.")
     return "\n\n".join(bolumler)
