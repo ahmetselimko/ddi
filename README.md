@@ -9,6 +9,7 @@ tutarlı kalması için modele neyi hatırlatmak gerekir?**
 ```bash
 cp .env.example .env          # GEMINI_API_KEY'i doldur
 python oyun.py                # oyna: seçenek numarası ya da serbest eylem, çıkış: q
+python oyun.py --ayrinti      # editörün her sahnedeki bulgularını da göster
 ```
 
 Ağ ya da API anahtarı olmadan denemek için:
@@ -23,10 +24,31 @@ python -m unittest discover testler -v
 Her turda **oyun motoru** ([hikaye/motor.py](hikaye/motor.py)):
 
 1. **Bellek stratejisi** ile modele verilecek bağlamı kurar
-2. Bağlamı ve oyuncunun eylemini **dil modeline** gönderir
+2. Bağlamı, editörün önceki turdan notlarını ve oyuncunun eylemini **yazar modele** gönderir
 3. Modelin JSON yanıtını doğrular: sahne, mekân, karakterler, replikler, yeni olgular, seçenekler.
    Dünyada olmayan bir karakter ya da mekân uydurulmuşsa bunu **uyarı** olarak kaydeder.
-4. Yeni olguları oyun kanonuna ekler; her şeyi `oturumlar/*.jsonl` dosyasına yazar
+4. Sahneyi **editör modele** denetletir (aşağıda)
+5. Her şeyi `oturumlar/*.jsonl` dosyasına yazar
+
+## Editör
+
+Aynı dil modeline ikinci bir çağrı; bu kez hikâye yazdırılmaz, az önce yazılan
+sahne denetletilir ([hikaye/editor.py](hikaye/editor.py)).
+
+| `--editor` | Ne yapar |
+|---|---|
+| `yok` | Editör kapalı. Yeni olguları yazar modelin kendisi bildirir. |
+| `denetim` | Sahnedeki somut iddiaları kanona karşı sınıflar: **yeni** (kanona eklenir, model sonra ona sadık kalır), **biliniyor**, **çelişiyor** (kaydedilir, bir sonraki turda yazara düzeltme uyarısı gider). **Vaat defterini** (açılan, ilerleyen, çözülen sorular) ve **karakter değişimlerini** tutar. |
+| `tam` (varsayılan) | + sahneyi usta yazarların derslerinden çıkarılmış ölçütlerle değerlendirir ve yazara bir sonraki sahne için not yazar. |
+
+Ölçütler [ilkeler/zanaat.yaml](ilkeler/zanaat.yaml) dosyasında; kaynakları ve
+derslerin özetleri [ilkeler/KAYNAKLAR.md](ilkeler/KAYNAKLAR.md) içinde: Brandon
+Sanderson, Andrew Stanton, Trey Parker ve Matt Stone, Robert McKee, Kurt Vonnegut,
+Pixar, Mary Robinette Kowal, Dan Harmon, Orhan Pamuk. Dosyayı düzenleyerek
+ölçüt eklenip çıkarılabilir.
+
+Editör her tur bir model çağrısı daha demek, yani süre yaklaşık iki katına çıkar.
+Editör geçerli yanıt veremezse oyun durmaz; o tur editörsüz devam eder.
 
 ## Bellek stratejileri (deneyin bağımsız değişkeni)
 
@@ -70,11 +92,13 @@ hikaye/
   durum.py           oynanan sahneler, oyun olguları, özet
   bellek.py          bellek stratejileri
   getirim.py         Türkçe BM25
+  editor.py          editör: tutarlılık, vaat defteri, zanaat notları
   istem.py           tüm istem metinleri
   llm.py             dil modeli arka uçları
   motor.py           tur döngüsü ve yanıt doğrulama
   kayit.py           oturum kaydı (JSONL)
 dunyalar/            dünya dosyaları
+ilkeler/             usta yazar ölçütleri ve kaynak özetleri
 testler/             birim testleri
 oturumlar/           oyun kayıtları (git'e girmez)
 ```
@@ -82,8 +106,11 @@ oturumlar/           oyun kayıtları (git'e girmez)
 ## Yol haritası
 
 - [x] **Aşama 1:** oynanabilir çekirdek, 4 bellek stratejisi, kayıt
-- [ ] **Aşama 2:** tutarlılık ölçümü
-  - olgu çelişkisi: üretilen sahneleri kanona karşı denetleme (otomatik + elle örneklem)
+- [x] **Editör:** kanona karşı iddia sınıflama, vaat defteri, karakter değişimleri, zanaat notları
+- [ ] **Aşama 2:** ölçüm
+  - oyundan bağımsız değerlendirici: kayıtlı oturumları sonradan aynı editörle tarar, böylece
+    editörsüz oyunlar da aynı ölçüyle ölçülür
+  - editörün kendi doğruluğu: işaretlediği çelişkilerden bir örneklemin elle kontrolü
   - karakter sesi: replikten konuşanı tahmin eden sınıflandırıcı; üretilen replikler doğru karaktere atanıyor mu
-  - uydurma oranı: kayıttaki bilinmeyen karakter/mekân uyarıları
-- [ ] **Aşama 3:** deney: aynı tohumlarla her stratejide N turluk otomatik oyunlar, sonuç tabloları
+  - vaatler: kaç vaat açıldı, kaçı çözüldü, ortalama kaç sahne açık kaldı
+- [ ] **Aşama 3:** deney: bellek (4) × editör (3) koşulunda, aynı tohumlarla N turluk otomatik oyunlar, sonuç tabloları

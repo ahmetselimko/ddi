@@ -8,6 +8,7 @@ Dil modeli arka uçları.
 """
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,21 @@ class LLMYanit:
     sure: float
     girdi_token: int | None = None
     cikti_token: int | None = None
+
+
+def json_coz(metin: str) -> dict:
+    """Model yanıtından JSON nesnesini çıkarır; ```json ... ``` sarmalını açar.
+    Geçersizse ValueError fırlatır."""
+    metin = metin.strip()
+    if metin.startswith("```"):
+        metin = metin.split("\n", 1)[-1].rsplit("```", 1)[0]
+    try:
+        veri = json.loads(metin)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON çözülemedi: {e}") from e
+    if not isinstance(veri, dict):
+        raise ValueError("Yanıt bir JSON nesnesi değil.")
+    return veri
 
 
 def env_yukle(yol: Path) -> None:
@@ -109,6 +125,7 @@ class SahteLLM:
         self.ad = "sahte"
         self._mekanlar = list(dunya.mekanlar)
         self._karakterler = list(dunya.karakterler)
+        self._olgular = [o.id for o in dunya.olgular]
         self.cagri_sayisi = 0
 
     def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
@@ -116,6 +133,8 @@ class SahteLLM:
         n = self.cagri_sayisi
         if not json_mod:
             return LLMYanit(metin=f"Özet {n}: oyuncu kasabada iz sürüyor.", sure=0.0)
+        if "editörüsün" in sistem:
+            return LLMYanit(metin=json.dumps(self._editor_yaniti(n, kullanici), ensure_ascii=False), sure=0.0)
         k = self._karakterler[n % len(self._karakterler)]
         veri = {
             "sahne": f"Sahne {n}. Rüzgâr tuz taşıyor. \"Buradayım,\" diyor biri.",
@@ -126,6 +145,22 @@ class SahteLLM:
             "secenekler": [f"Seçenek {n}.{i}" for i in (1, 2, 3)],
         }
         return LLMYanit(metin=json.dumps(veri, ensure_ascii=False), sure=0.0)
+
+    def _editor_yaniti(self, n: int, kullanici: str) -> dict:
+        """Her turda: bir yeni iddia, bir çelişki, bir yeni vaat; açık bir vaat varsa onu çözer."""
+        acik_vaatler = re.findall(r"^- \[(v\d+)\]", kullanici, re.M)
+        yanit = {
+            "iddialar": [
+                {"metin": f"Sahte iddia {n}", "durum": "yeni", "olgu": None, "ilgili": []},
+                {"metin": f"Sahte çelişki {n}", "durum": "celisiyor", "olgu": self._olgular[0], "ilgili": []},
+            ],
+            "vaatler": {"acilan": [f"Sahte soru {n}?"], "ilerleyen": [], "cozulen": acik_vaatler[:1]},
+            "karakter_degisimleri": [{"karakter": self._karakterler[0], "degisim": f"Sahte değişim {n}"}],
+        }
+        if "zanaat:" in kullanici:
+            yanit["zanaat"] = [{"ilke": "neden_sonuc", "sonuc": "zayif", "gerekce": "Sahte gerekçe."}]
+            yanit["yazar_notu"] = f"Sahte not {n}."
+        return yanit
 
 
 def llm_olustur(tur: str, dunya=None, model: str | None = None):

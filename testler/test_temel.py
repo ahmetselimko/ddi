@@ -6,7 +6,9 @@ from pathlib import Path
 
 from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import DunyaHatasi, dunya_yukle
+from hikaye.editor import Editor, editor_yanit_coz, ilkeleri_yukle
 from hikaye.getirim import BM25, belirtecle, kucult
+from hikaye.istem import sistem_istemi
 from hikaye.kayit import Kayitci
 from hikaye.llm import LLMYanit, SahteLLM
 from hikaye.motor import Motor, YanitHatasi, yanit_coz
@@ -133,6 +135,116 @@ class MotorTesti(unittest.TestCase):
         sahne = Motor(dunya, llm, Bellek("son")).basla()
         self.assertEqual(sahne.no, 1)
         self.assertEqual(llm.cagri, 2)
+
+
+class IstemTesti(unittest.TestCase):
+    def test_sistem_isteminde_tum_karakterlerin_tanimi_var(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        sistem = sistem_istemi(dunya)
+        for k in dunya.karakterler.values():
+            self.assertIn(k.tanim, sistem)          # "iri yapılı" kart gelmese de bilinsin
+
+
+class EditorTesti(unittest.TestCase):
+    def setUp(self):
+        self.dunya = dunya_yukle(DUNYA_YOLU)
+        self.motor = Motor(self.dunya, SahteLLM(self.dunya), Bellek("son"))
+        self.motor.basla()
+        self.durum = self.motor.durum
+
+    def test_ilke_dosyasi_gecerli(self):
+        ilkeler = ilkeleri_yukle()
+        self.assertTrue(all(i["kapsam"] in ("sahne", "hikaye") for i in ilkeler))
+        self.assertTrue(all("soru" in i for i in ilkeler if i["kapsam"] == "sahne"))
+        self.assertEqual(len({i["id"] for i in ilkeler}), len(ilkeler))
+
+    def test_gecersiz_kayitlar_ayiklanir(self):
+        self.durum.vaat_ac("Yedi numaralı odada ne var?", 1)
+        metin = json.dumps({
+            "iddialar": [
+                {"metin": "Nehir zarif", "durum": "celisiyor", "olgu": "o99"},   # olgu yok → atılır
+                {"metin": "Nehir iri", "durum": "biliniyor", "olgu": "o2"},
+                {"metin": "?", "durum": "belki"},                                # geçersiz durum
+            ],
+            "vaatler": {"acilan": ["a", "b", "c"], "ilerleyen": ["v1", "v9"], "cozulen": []},
+            "karakter_degisimleri": [{"karakter": "vezir", "degisim": "x"}],
+        })
+        b = editor_yanit_coz(metin, self.dunya, self.durum)
+        self.assertEqual([i["metin"] for i in b["iddialar"]], ["Nehir iri"])
+        self.assertEqual(b["vaatler"]["acilan"], ["a", "b"])                     # en fazla 2
+        self.assertEqual(b["vaatler"]["ilerleyen"], ["v1"])
+        self.assertEqual(b["karakter_degisimleri"], [])
+
+    def test_bulgular_duruma_islenir(self):
+        self.durum.vaat_ac("Yedi numaralı odada ne var?", 1)
+        editor = Editor("tam", ilkeler=[])
+        editor._uygula({
+            "iddialar": [
+                {"metin": "Selvi'nin gözleri ela", "durum": "yeni", "olgu": None, "ilgili": ["selvi"]},
+                {"metin": "Nehir zarif", "durum": "celisiyor", "olgu": "o2", "ilgili": []},
+            ],
+            "vaatler": {"acilan": ["Yabancı kim?"], "ilerleyen": [], "cozulen": ["v1"]},
+            "karakter_degisimleri": [{"karakter": "nehir", "degisim": "oyuncuya ısındı"}],
+            "zanaat": [],
+            "yazar_notu": "Tekin'i konuştur.",
+        }, self.durum, 2)
+        self.assertEqual(self.durum.olgular[-1].metin, "Selvi'nin gözleri ela")
+        self.assertEqual(self.durum.celiskiler[0].olgu_id, "o2")
+        self.assertEqual([v.metin for v in self.durum.acik_vaatler], ["Yabancı kim?"])
+        self.assertEqual(self.durum.vaatler[0].cozuldugu_sahne, 2)
+        self.assertEqual(self.durum.editor_notu, "Tekin'i konuştur.")
+
+    def test_yazara_giden_bolumler(self):
+        self.durum.vaat_ac("Yabancı kim?", 1)
+        from hikaye.durum import Celiski
+        self.durum.celiskiler.append(Celiski(sahne_no=1, iddia="Nehir zarif", olgu_id="o2"))
+        self.durum.editor_notu = "Tekin'i konuştur."
+
+        metin = "\n".join(Editor("tam", ilkeler=[]).yazara_bolumler(self.dunya, self.durum))
+        self.assertIn("Yabancı kim?", metin)
+        self.assertIn("üç parmak eksik", metin)         # çelişilen olgunun doğrusu
+        self.assertIn("Tekin'i konuştur.", metin)
+
+        denetim = "\n".join(Editor("denetim").yazara_bolumler(self.dunya, self.durum))
+        self.assertNotIn("EDİTÖR NOTU", denetim)         # zanaat notu yalnızca tam modda
+
+
+class EditorluMotorTesti(unittest.TestCase):
+    def test_tam_editorle_uctan_uca(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        with tempfile.TemporaryDirectory() as klasor:
+            kayitci = Kayitci(Path(klasor), meta={"bellek": "ozet+kanon"})
+            motor = Motor(dunya, SahteLLM(dunya), Bellek("ozet+kanon"), kayitci, editor=Editor("tam"))
+            sahne = motor.basla()
+            for _ in range(3):
+                sahne = motor.oyna(sahne.secenekler[0])
+
+            durum = motor.durum
+            # Olgular editörden gelir (tur başına 1), yazarınkiler yok sayılır
+            self.assertEqual([o.metin for o in durum.olgular],
+                             [f"Sahte iddia {n}" for n in (2, 5, 8, 11)])
+            self.assertEqual(len(durum.celiskiler), 4)
+            self.assertEqual(len(durum.vaatler), 4)
+            self.assertTrue(any(v.cozuldugu_sahne for v in durum.vaatler))
+            self.assertTrue(durum.editor_notu)
+
+            son = json.loads(kayitci.yol.read_text(encoding="utf-8").splitlines()[-1])
+            self.assertGreater(son["baglam"]["editor_bolumleri"], 0)
+            self.assertFalse(son["editor_basarisiz"])
+
+    def test_editor_bozulursa_oyun_surer(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+
+        class EditoruBozukLLM(SahteLLM):
+            def uret(self, sistem, kullanici, json_mod=True, sicaklik=0.8):
+                if "editörüsün" in sistem:
+                    return LLMYanit(metin="bozuk", sure=0.0)
+                return super().uret(sistem, kullanici, json_mod, sicaklik)
+
+        motor = Motor(dunya, EditoruBozukLLM(dunya), Bellek("son"), editor=Editor("denetim"))
+        motor.basla()
+        self.assertIsNone(motor.son_bulgular)
+        self.assertEqual(len(motor.durum.olgular), 1)       # yazarın olgusuna geri düşer
 
 
 if __name__ == "__main__":

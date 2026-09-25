@@ -1,14 +1,15 @@
 """
 Oyun motoru. Bir tur:
-  bağlamı kur → modele sor → yanıtı doğrula → durumu güncelle → kaydet
+  bağlamı kur → yazar modele sor → yanıtı doğrula → durumu güncelle
+  → (editör açıksa) sahneyi denetlet → kaydet
 """
-import json
-
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
 from .durum import Durum, Replik, Sahne
+from .editor import Editor
 from .kayit import Kayitci
+from .llm import json_coz
 
 
 class YanitHatasi(ValueError):
@@ -19,15 +20,10 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
     """Model yanıtını doğrular. Kurtarılabilir sorunları düzeltip uyarı olarak
     döndürür (bilinmeyen id'ler tutarsızlık işaretidir, kayda geçer); sahne ya da
     seçenek yoksa YanitHatasi fırlatır."""
-    metin = metin.strip()
-    if metin.startswith("```"):                     # ```json ... ``` sarmalı
-        metin = metin.split("\n", 1)[-1].rsplit("```", 1)[0]
     try:
-        veri = json.loads(metin)
-    except json.JSONDecodeError as e:
-        raise YanitHatasi(f"JSON çözülemedi: {e}") from e
-    if not isinstance(veri, dict):
-        raise YanitHatasi("Yanıt bir JSON nesnesi değil.")
+        veri = json_coz(metin)
+    except ValueError as e:
+        raise YanitHatasi(str(e)) from e
 
     sahne = str(veri.get("sahne") or "").strip()
     if not sahne:
@@ -76,14 +72,16 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
 
 
 class Motor:
-    def __init__(self, dunya: Dunya, llm, bellek: Bellek,
-                 kayitci: Kayitci | None = None, deneme: int = 2):
+    def __init__(self, dunya: Dunya, llm, bellek: Bellek, kayitci: Kayitci | None = None,
+                 editor: Editor | None = None, deneme: int = 2):
         self.dunya = dunya
         self.llm = llm
         self.bellek = bellek
         self.kayitci = kayitci
+        self.editor = editor if editor and editor.acik else None
         self.deneme = deneme
         self.durum = Durum(mekan=dunya.baslangic_mekan)
+        self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
 
     def basla(self) -> Sahne:
         if self.durum.sahneler:
@@ -97,8 +95,9 @@ class Motor:
 
     def _tur(self, eylem: str | None) -> Sahne:
         baglam = self.bellek.baglam(self.dunya, self.durum, eylem)
+        ek = self.editor.yazara_bolumler(self.dunya, self.durum) if self.editor else []
         sistem = istem.sistem_istemi(self.dunya)
-        kullanici = istem.sahne_istemi(self.dunya, baglam, eylem)
+        kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek)
 
         yanitlar, hatalar = [], []
         istek = kullanici
@@ -126,22 +125,37 @@ class Motor:
         )
         self.durum.sahneler.append(sahne)
         self.durum.mekan = sahne.mekan
-        yeni_olgular = [self.durum.olgu_ekle(m, ilgili, no) for m, ilgili in cozum["yeni_olgular"]]
+        olgu_sayisi = len(self.durum.olgular)
+
+        # Editör açıksa yeni olguların kaynağı editördür (kanona karşı sınıflanmış
+        # iddialar); kapalıysa ya da başarısız olursa yazarın bildirdikleri.
+        self.son_bulgular, editor_yanitlari = None, []
+        if self.editor:
+            self.son_bulgular, editor_yanitlari = self.editor.denetle(self.dunya, self.durum, self.llm)
+        if self.son_bulgular is None:
+            for m, ilgili in cozum["yeni_olgular"]:
+                self.durum.olgu_ekle(m, ilgili, no)
+        yeni_olgular = self.durum.olgular[olgu_sayisi:]
         ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.llm)
 
         if self.kayitci:
-            cagrilar = yanitlar + ([ozet_yaniti] if ozet_yaniti else [])
+            cagrilar = yanitlar + editor_yanitlari + ([ozet_yaniti] if ozet_yaniti else [])
             self.kayitci.tur(
                 no=no,
                 eylem=eylem,
                 sahne=sahne,
                 yeni_olgular=yeni_olgular,
+                yazar_olgulari=[m for m, _ in cozum["yeni_olgular"]],
+                editor=self.son_bulgular,
+                editor_basarisiz=bool(self.editor) and self.son_bulgular is None,
+                acik_vaatler=[v.id for v in self.durum.acik_vaatler],
                 uyarilar=uyarilar,
                 hatalar=hatalar,
                 baglam={
                     "olgu_idleri": baglam.olgu_idleri,
                     "karakter_idleri": baglam.karakter_idleri,
                     "ozet": baglam.ozet,
+                    "editor_bolumleri": len(ek),
                     "istem_karakter": len(sistem) + len(kullanici),
                 },
                 ozet=self.durum.ozet,

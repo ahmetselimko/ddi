@@ -1,0 +1,92 @@
+# Usta yazarların derslerinden çıkarılmış ölçütler. Kaynaklar: KAYNAKLAR.md
+#
+# kapsam: sahne   editör her sahneyi "soru" ile değerlendirir (iyi / zayif)
+#         hikaye  editör yazar notunu yazarken genel yön olarak kullanır
+#
+# Bu dosyayı düzenleyerek ölçüt ekleyip çıkarabilirsin; kod değişmez.
+
+ilkeler:
+  # ── Sahne düzeyi ─────────────────────────────────────────────────────────
+  - id: neden_sonuc
+    kaynak: Trey Parker & Matt Stone (NYU, 2011)
+    ilke: Olaylar "ve sonra" ile değil, "bu yüzden" ya da "ama" ile bağlanır.
+    soru: Sahne, oyuncunun eyleminin ve önceki olayların sonucu olarak mı doğuyor; bir sonuç ya da engel üretiyor mu?
+    kapsam: sahne
+
+  - id: sahne_donusu
+    kaynak: Robert McKee (Story)
+    ilke: Her sahne bir karakterin durumunda anlamlı bir değeri çevirir; değişmeyen sahne olay değildir.
+    soru: Sahnenin başıyla sonu arasında oyuncunun ya da bir karakterin durumunda (güven, bilgi, tehlike, ilişki) fark edilir bir değişim var mı?
+    kapsam: sahne
+
+  - id: iki_arti_iki
+    kaynak: Andrew Stanton (TED, 2012)
+    ilke: Okura 4'ü verme, 2+2'yi ver; seyirci anlamak için emek vermek ister.
+    soru: Sahne her şeyi açıkça söylemek yerine oyuncunun kendi çıkaracağı ipuçları bırakıyor mu?
+    kapsam: sahne
+
+  - id: istek
+    kaynak: Kurt Vonnegut (8 kural, 3)
+    ilke: Her karakter bir şey istemeli, bir bardak su bile olsa.
+    soru: Sahnedeki karakterlerin ne istediği hissediliyor mu?
+    kapsam: sahne
+
+  - id: fikir
+    kaynak: Pixar'ın 22 kuralı (13)
+    ilke: Karakterlerin görüşü olsun; edilgen, her şeye uyan karakter zehirdir.
+    soru: Karakterler görüş bildiriyor, itiraz ediyor, taraf tutuyor mu; yoksa yalnızca bilgi mi aktarıyorlar?
+    kapsam: sahne
+
+  - id: her_cumle
+    kaynak: Kurt Vonnegut (8 kural, 4)
+    ilke: Her cümle ya karakteri göstermeli ya da olayı ilerletmeli.
+    soru: Sahnede ikisini de yapmayan, atılabilecek dolgu var mı? (Varsa zayif.)
+    kapsam: sahne
+
+  - id: tesaduf
+    kaynak: Pixar'ın 22 kuralı (19)
+    ilke: Tesadüf karakteri belaya sokabilir; beladan kurtarması hiledir.
+    soru: Bir sorun tesadüfle ya da emek harcanmadan mı çözüldü? (Çözüldüyse zayif.)
+    kapsam: sahne
+
+  - id: etkin_oyuncu
+    kaynak: Brandon Sanderson (karakter ölçekleri, etkinlik)
+    ilke: Hikâyeyi kahramanın seçimleri sürmeli.
+    soru: Sunulan seçenekler birbirinden gerçekten farklı yönlere açılıyor ve oyuncuya hikâyeyi değiştirme gücü veriyor mu?
+    kapsam: sahne
+
+  # ── Hikâye düzeyi ────────────────────────────────────────────────────────
+  - id: vaat
+    kaynak: Brandon Sanderson (BYU dersleri, vaat-ilerleme-karşılık)
+    ilke: Başta verilen vaatler ilerlemeli ve karşılığını bulmalı; ilerleme hissi okuru tutar. Karşılığa çok hızlı varma.
+    kapsam: hikaye
+
+  - id: merak_zinciri
+    kaynak: Andrew Stanton (TED, 2012)
+    ilke: Bir soruyu cevaplarken yenisini doğur; merak zinciri kopmasın.
+    kapsam: hikaye
+
+  - id: ic_ice
+    kaynak: Mary Robinette Kowal (MICE)
+    ilke: Açılan iplikler açıldıkları sıranın tersine kapanır; en son açılan soru en önce cevaplanır.
+    kapsam: hikaye
+
+  - id: onemsetme
+    kaynak: Andrew Stanton (TED) · Kurt Vonnegut (2) · Pixar (16)
+    ilke: Oyuncu en az bir karakteri önemsemeli; riskin ne olduğunu bilmeli.
+    kapsam: hikaye
+
+  - id: bedel
+    kaynak: Dan Harmon (hikâye çemberi) · Kurt Vonnegut (6) · Pixar (6)
+    ilke: Karakter istediğini bulur ama bedelini öder; kim olduğunu zorluk gösterir.
+    kapsam: hikaye
+
+  - id: degisim
+    kaynak: Dan Harmon (hikâye çemberi)
+    ilke: Karakterler olaylar karşısında değişmeli; sonunda başladıkları kişi olmamalılar.
+    kapsam: hikaye
+
+  - id: gizli_merkez
+    kaynak: Orhan Pamuk (Norton dersleri, 2009) — uyarlama
+    ilke: Okur hikâyenin gizli merkezini, asıl sırrını arar; ayrıntılar bu arayışı beslemeli.
+    kapsam: hikaye
