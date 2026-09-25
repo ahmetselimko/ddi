@@ -134,7 +134,9 @@ class Editor:
 
         for d in bulgular["karakter_degisimleri"]:
             durum.karakter_degisimleri.append(KarakterDegisimi(sahne_no=no, **d))
-        durum.editor_notu = bulgular["yazar_notu"] if self.zanaat_acik else ""
+        if self.zanaat_acik:
+            durum.editor_notu = bulgular["yazar_notu"]
+            durum.zanaat_gecmisi.append([z["ilke"] for z in bulgular["zanaat"] if z["sonuc"] == "zayif"])
 
     def yazara_bolumler(self, dunya: Dunya, durum: Durum) -> list[str]:
         """Bir sonraki sahneyi yazacak modele gidecek editör bölümleri."""
@@ -160,6 +162,28 @@ class Editor:
                             for c in son_celiskiler)
             )
 
-        if self.zanaat_acik and durum.editor_notu:
-            bolumler.append(f"[EDİTÖR NOTU]\n{durum.editor_notu}")
+        # Modele sorulmadan, doğrudan sayılarak bulunan sorun: karakterler sahnedeydi ama konuşmadı
+        son = durum.sahneler[-1]
+        konusanlar = {r.karakter for r in son.replikler}
+        susanlar = [dunya.karakterler[k].ad for k in son.karakterler if k not in konusanlar]
+        if son.karakterler and not konusanlar:
+            bolumler.append(f"[DİKKAT — önceki sahnede {', '.join(susanlar)} hiç konuşmadı. "
+                            "Bu sahnede sahnedeki karakterler konuşsun ve oyuncuya cevap versin.]")
+
+        if self.zanaat_acik:
+            tekrarlayan = _tekrarlayan_zayiflar(durum.zanaat_gecmisi)
+            if tekrarlayan:
+                ilke_metni = {i["id"]: i["ilke"] for i in self.ilkeler}
+                bolumler.append(
+                    "[TEKRARLAYAN SORUN — son iki sahnede de zayıftı; bu sahnede mutlaka düzelt]\n"
+                    + "\n".join(f"- {i}: {ilke_metni.get(i, '')}" for i in tekrarlayan)
+                )
+            if durum.editor_notu:
+                bolumler.append(f"[EDİTÖR NOTU]\n{durum.editor_notu}")
         return bolumler
+
+
+def _tekrarlayan_zayiflar(gecmis: list[list[str]]) -> list[str]:
+    if len(gecmis) < 2:
+        return []
+    return [i for i in gecmis[-1] if i in gecmis[-2]]

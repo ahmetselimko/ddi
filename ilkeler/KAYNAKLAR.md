@@ -37,6 +37,11 @@ Toy Story ve WALL-E'nin yazarı/yönetmeni. [Konuşma](https://www.ted.com/talks
 
 **Oyunda:** `iki_arti_iki`, `merak_zinciri`, `onemsetme` ölçütleri.
 
+**İlk denemeden ders:** 2+2 ilkesi ilk sürümde "cevabı hazır verme, ima et" diye
+yazılmıştı. Editör bunu "karakter doğrudan cevap vermesin" diye uyguladı. Sonuçta
+karakterler hiç konuşmadı, hikâye ilerlemedi. İlke, "2+2 cevabı esirgemek
+değildir; karakter konuşur ve somut bir parça verir" diye yeniden yazıldı.
+
 ---
 
 ## Trey Parker ve Matt Stone: NYU yazarlık dersi (2011)

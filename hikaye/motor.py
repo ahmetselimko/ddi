@@ -8,12 +8,60 @@ from .bellek import Bellek
 from .dunya import Dunya
 from .durum import Durum, Replik, Sahne
 from .editor import Editor
+from .getirim import kucult
 from .kayit import Kayitci
 from .llm import json_coz
 
 
 class YanitHatasi(ValueError):
     pass
+
+
+def akisi_birlestir(parcalar, dunya: Dunya) -> tuple[str, list[Replik], list[str]]:
+    """Anlatım ve replik parçalarından sahne metnini kurar. Konuşmalar metnin
+    içinden geçtiği için modelin repliği yazıp sahneye koymayı unutması imkânsızlaşır;
+    konuşanın kim olduğu da kesin bilinir (karakter sesi ölçümü için)."""
+    satirlar, replikler, uyarilar = [], [], []
+    for p in parcalar if isinstance(parcalar, list) else []:
+        if not isinstance(p, dict):
+            continue
+        if "replik" in p:
+            metin = str(p.get("replik") or "").strip().strip('"“”').strip()
+            if not metin:
+                continue
+            konusan = p.get("konusan")
+            bulunan = None if konusan == "oyuncu" else _konusan_bul(konusan, dunya)
+            if konusan == "oyuncu":
+                ad = "Sen"
+            elif bulunan:
+                if bulunan != konusan:
+                    uyarilar.append(f"konuşan id'si düzeltildi: {konusan!r} → {bulunan}")
+                ad = dunya.karakterler[bulunan].ad
+                replikler.append(Replik(bulunan, metin))
+            else:
+                ad = str(konusan or "?")
+                uyarilar.append(f"replikte bilinmeyen karakter: {konusan!r}")
+            satirlar.append(f'{ad}: "{metin}"')
+        else:
+            metin = str(p.get("anlatim") or "").strip()
+            if metin:
+                satirlar.append(metin)
+    return "\n".join(satirlar), replikler, uyarilar
+
+
+def _konusan_bul(konusan, dunya: Dunya) -> str | None:
+    """Konuşan id'sini karakterle eşler; modelin küçük yazım kaymalarını
+    ("tekine", "Nehir Hanım") tolere eder."""
+    if konusan in dunya.karakterler:
+        return konusan
+    aranan = kucult(str(konusan or "")).strip()
+    if len(aranan) < 3:
+        return None
+    for kid, k in dunya.karakterler.items():
+        adlar = [kid, kucult(k.ad)] + [kucult(a) for a in k.adlar]
+        if any(aranan.startswith(a) or a.startswith(aranan) for a in adlar):
+            return kid
+    return None
 
 
 def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[str]]:
@@ -25,14 +73,21 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
     except ValueError as e:
         raise YanitHatasi(str(e)) from e
 
-    sahne = str(veri.get("sahne") or "").strip()
+    uyarilar = []
+    if veri.get("akis"):
+        sahne, replikler, akis_uyarilari = akisi_birlestir(veri["akis"], dunya)
+        uyarilar.extend(akis_uyarilari)
+    else:
+        # Eski biçim: tek parça metin. Replikler metinden ayrı geldiği için güvenilmez.
+        sahne, replikler = str(veri.get("sahne") or "").strip(), []
+        if sahne:
+            uyarilar.append("akış yerine düz sahne metni döndü")
     if not sahne:
         raise YanitHatasi("Sahne metni boş.")
     secenekler = [str(s).strip() for s in veri.get("secenekler") or [] if str(s).strip()]
     if not secenekler:
         raise YanitHatasi("Seçenek yok.")
 
-    uyarilar = []
     mekan = veri.get("mekan")
     if mekan not in dunya.mekanlar:
         uyarilar.append(f"bilinmeyen mekân: {mekan!r}")
@@ -44,15 +99,6 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
             karakterler.append(k)
         else:
             uyarilar.append(f"bilinmeyen karakter: {k!r}")
-
-    replikler = []
-    for r in veri.get("replikler") or []:
-        if not isinstance(r, dict) or not str(r.get("metin") or "").strip():
-            continue
-        if r.get("karakter") in dunya.karakterler:
-            replikler.append(Replik(r["karakter"], str(r["metin"]).strip()))
-        else:
-            uyarilar.append(f"replikte bilinmeyen karakter: {r.get('karakter')!r}")
 
     bilinen = set(dunya.karakterler) | set(dunya.mekanlar)
     yeni_olgular = []

@@ -19,10 +19,12 @@ DUNYA_YOLU = KOK / "dunyalar" / "tuzhan.yaml"
 
 def gecerli_yanit(**degisen) -> str:
     veri = {
-        "sahne": "Nehir Hanım feneri kaldırıyor.",
+        "akis": [
+            {"anlatim": "Nehir Hanım feneri kaldırıyor."},
+            {"konusan": "nehir", "replik": "Otur, evlat."},
+        ],
         "mekan": "han",
         "karakterler": ["nehir"],
-        "replikler": [{"karakter": "nehir", "metin": "Otur, evlat."}],
         "yeni_olgular": [],
         "secenekler": ["Otur", "Kervanı sor", "Odaya çık"],
     }
@@ -76,9 +78,42 @@ class YanitCozmeTesti(unittest.TestCase):
         self.assertEqual(cozum["karakterler"], ["nehir"])
         self.assertEqual(len(uyarilar), 2)
 
-    def test_bos_sahne_hata(self):
+    def test_bos_akis_hata(self):
         with self.assertRaises(YanitHatasi):
-            yanit_coz(gecerli_yanit(sahne=""), self.dunya, "han")
+            yanit_coz(gecerli_yanit(akis=[]), self.dunya, "han")
+
+    def test_replikler_sahne_metnine_girer(self):
+        metin = gecerli_yanit(akis=[
+            {"anlatim": "Fener titriyor."},
+            {"konusan": "oyuncu", "replik": "Kervanı arıyorum."},
+            {"konusan": "nehir", "replik": "\"Otur, evlat.\""},
+        ])
+        cozum, _ = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual(cozum["sahne"], 'Fener titriyor.\nSen: "Kervanı arıyorum."\nNehir Hanım: "Otur, evlat."')
+        self.assertEqual([(r.karakter, r.metin) for r in cozum["replikler"]], [("nehir", "Otur, evlat.")])
+
+    def test_bilinmeyen_konusan_uyari(self):
+        metin = gecerli_yanit(akis=[{"konusan": "vezir", "replik": "Selam."}])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertIn('vezir: "Selam."', cozum["sahne"])
+        self.assertEqual(cozum["replikler"], [])
+        self.assertEqual(len(uyarilar), 1)
+
+    def test_konusan_yazim_kaymasi_duzeltilir(self):
+        metin = gecerli_yanit(akis=[{"konusan": "tekine", "replik": "Abi!"},
+                                    {"konusan": "Nehir Hanım", "replik": "Otur."}])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual([r.karakter for r in cozum["replikler"]], ["tekin", "nehir"])
+        self.assertIn('Tekin: "Abi!"', cozum["sahne"])
+        self.assertEqual(len(uyarilar), 2)              # düzeltmeler yine de kayda geçer
+
+    def test_eski_duz_metin_bicimi_kabul_edilir(self):
+        veri = json.loads(gecerli_yanit())
+        del veri["akis"]
+        veri["sahne"] = "Düz metin."
+        cozum, uyarilar = yanit_coz(json.dumps(veri), self.dunya, "han")
+        self.assertEqual(cozum["sahne"], "Düz metin.")
+        self.assertEqual(len(uyarilar), 1)
 
 
 class BellekTesti(unittest.TestCase):
@@ -207,6 +242,21 @@ class EditorTesti(unittest.TestCase):
 
         denetim = "\n".join(Editor("denetim").yazara_bolumler(self.dunya, self.durum))
         self.assertNotIn("EDİTÖR NOTU", denetim)         # zanaat notu yalnızca tam modda
+
+    def test_konusmayan_karakter_uyarisi(self):
+        editor = Editor("denetim")
+        self.assertNotIn("hiç konuşmadı", "\n".join(editor.yazara_bolumler(self.dunya, self.durum)))
+        self.durum.sahneler[-1].replikler = []
+        uyari = "\n".join(editor.yazara_bolumler(self.dunya, self.durum))
+        self.assertIn("hiç konuşmadı", uyari)
+
+    def test_tekrarlayan_zayif_olcut_uyarisi(self):
+        editor = Editor("tam")
+        self.durum.zanaat_gecmisi = [["sahne_donusu", "fikir"], ["sahne_donusu"]]
+        metin = "\n".join(editor.yazara_bolumler(self.dunya, self.durum))
+        self.assertIn("TEKRARLAYAN SORUN", metin)
+        self.assertIn("sahne_donusu", metin)
+        self.assertNotIn("- fikir", metin)               # yalnızca son sahnede zayıf değil
 
 
 class EditorluMotorTesti(unittest.TestCase):

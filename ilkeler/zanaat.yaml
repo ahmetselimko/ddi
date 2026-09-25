@@ -10,7 +10,7 @@ ilkeler:
   - id: neden_sonuc
     kaynak: Trey Parker & Matt Stone (NYU, 2011)
     ilke: Olaylar "ve sonra" ile değil, "bu yüzden" ya da "ama" ile bağlanır.
-    soru: Sahne, oyuncunun eyleminin ve önceki olayların sonucu olarak mı doğuyor; bir sonuç ya da engel üretiyor mu?
+    soru: Sahne, oyuncunun eyleminin sonucu olarak mı doğuyor (sorusu ya da eylemi karşılıksız kalmıyor mu) ve bir sonuç ya da engel üretiyor mu?
     kapsam: sahne
 
   - id: sahne_donusu
@@ -21,8 +21,12 @@ ilkeler:
 
   - id: iki_arti_iki
     kaynak: Andrew Stanton (TED, 2012)
-    ilke: Okura 4'ü verme, 2+2'yi ver; seyirci anlamak için emek vermek ister.
-    soru: Sahne her şeyi açıkça söylemek yerine oyuncunun kendi çıkaracağı ipuçları bırakıyor mu?
+    ilke: >-
+      Okura 4'ü verme, 2+2'yi ver; seyirci anlamak için emek vermek ister. Bu, cevabı esirgemek
+      değildir: karakter konuşur ve somut bir parça verir, gerisini oyuncu birleştirir.
+    soru: >-
+      Sahne oyuncuya birleştirebileceği somut bir bilgi parçası veriyor mu? Her şeyi açık
+      eden sahne de, hiçbir şey vermeyip yalnızca ima eden sahne de zayif.
     kapsam: sahne
 
   - id: istek

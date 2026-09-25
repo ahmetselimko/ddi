@@ -69,6 +69,7 @@ class Durum:
     celiskiler: list[Celiski] = field(default_factory=list)
     karakter_degisimleri: list[KarakterDegisimi] = field(default_factory=list)
     editor_notu: str = ""
+    zanaat_gecmisi: list[list[str]] = field(default_factory=list)   # sahne başına zayıf ölçütler
 
     def olgu_ekle(self, metin: str, ilgili: list[str], sahne_no: int) -> OyunOlgusu:
         olgu = OyunOlgusu(id=f"y{len(self.olgular) + 1}", metin=metin,

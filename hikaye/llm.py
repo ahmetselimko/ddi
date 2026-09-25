@@ -137,10 +137,12 @@ class SahteLLM:
             return LLMYanit(metin=json.dumps(self._editor_yaniti(n, kullanici), ensure_ascii=False), sure=0.0)
         k = self._karakterler[n % len(self._karakterler)]
         veri = {
-            "sahne": f"Sahne {n}. Rüzgâr tuz taşıyor. \"Buradayım,\" diyor biri.",
+            "akis": [
+                {"anlatim": f"Sahne {n}. Rüzgâr tuz taşıyor."},
+                {"konusan": k, "replik": "Buradayım."},
+            ],
             "mekan": self._mekanlar[n % len(self._mekanlar)],
             "karakterler": [k],
-            "replikler": [{"karakter": k, "metin": "Buradayım."}],
             "yeni_olgular": [{"metin": f"Sahte olgu {n}: körük onarıldı.", "ilgili": [k]}],
             "secenekler": [f"Seçenek {n}.{i}" for i in (1, 2, 3)],
         }

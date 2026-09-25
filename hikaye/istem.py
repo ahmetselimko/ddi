@@ -16,21 +16,36 @@ KARAKTERLER (id: ad — tanım):
 
 KURALLAR:
 1. Oyuncuya ikinci tekil şahısla, şimdiki zamanda anlat ("Kapıyı itiyorsun.").
-2. Her sahne 120-220 kelime olsun. Oyuncunun yerine karar verme; sahneyi bir seçim anında bitir.
-3. Karakterlerin görünüşü yukarıdaki tanımlara uysun. Onları kartlarındaki kişilik ve konuşma
-   üslubuyla konuştur. Bir karakter bilmediği bir şeyi söylemesin.
-4. Verilen olgularla, özetle ve önceki sahnelerle çelişme. Emin olmadığın ayrıntıyı uydurma, belirsiz bırak.
-5. Oyuncu dünyaya aykırı bir şey yapmaya çalışırsa, bunun neden olmadığını hikâyenin içinde göster.
-6. Yalnızca aşağıdaki biçimde JSON döndür, başka hiçbir şey yazma.
+2. Oyuncunun eyleminin SONUCUNU göster. Oyuncu bir şey sorduysa karşısındaki karakter cevap verir;
+   sır saklıyorsa bile kaçamak, yarım ya da yanıltıcı bir cevapla konuşur. Susmak ve bakışmak cevap değildir.
+3. Her sahnede bir şey değişsin: yeni bir bilgi, bir olay, bir engel, bir pazarlık ya da ilişkide bir kırılma.
+   Yalnızca mekân ve atmosfer anlatan sahne yazma.
+4. Sahnede karakter varsa konuşur: sahnede en az 2 replik olsun. Betimleme sahnenin en fazla üçte biri olsun.
+5. Karakterlerin görünüşü yukarıdaki tanımlara uysun; kartlarındaki kişilik ve konuşma üslubuyla konuşsunlar.
+   Bir karakter bilmediği şeyi söylemez; bilmiyorsa bunu kendi üslubuyla söyler.
+6. Verilen olgularla, özetle ve önceki sahnelerle çelişme. Kanonda olmayan küçük ayrıntıları uydurabilirsin;
+   hikâyenin ana sırlarını ise tek sahnede çözme.
+7. Sahneyi karakterlerin tepkisinden SONRA, oyuncunun karar vermesi gereken bir anda bitir.
+   Oyuncunun yerine karar verme.
+8. Seçenekler birbirinden farklı yönlere açılsın; oyuncunun zaten yaptığı ya da sorduğu şeyi tekrar önerme.
+9. Oyuncu dünyaya aykırı bir şey yapmaya çalışırsa, bunun neden olmadığını hikâyenin içinde göster.
+10. Yalnızca aşağıdaki biçimde JSON döndür, başka hiçbir şey yazma.
 
 {{
-  "sahne": "sahnenin anlatımı",
+  "akis": [
+    {{"anlatim": "anlatım paragrafı"}},
+    {{"konusan": "karakter id'si (oyuncu konuşuyorsa \\"oyuncu\\")", "replik": "söylenen söz, tırnaksız"}},
+    {{"anlatim": "anlatım paragrafı"}}
+  ],
   "mekan": "sahnenin geçtiği mekânın id'si (yukarıdaki listeden)",
   "karakterler": ["sahnede bulunan karakterlerin id'leri"],
-  "replikler": [{{"karakter": "id", "metin": "o karakterin bu sahnede söylediği replik, sahnedeki haliyle aynen"}}],
   "yeni_olgular": [{{"metin": "bu sahnede kesinleşen yeni bir gerçek", "ilgili": ["karakter/mekân id'leri"]}}],
   "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
 }}
+
+akis: sahne baştan sona bu parçalardan oluşur, toplam 120-220 kelime. Her konuşma ayrı bir replik
+parçasıdır; konuşmayı anlatım parçasının içine gömme. Replik yalnızca sahnede O ANDA söylenen
+sözdür; hatırlanan ya da başkasından aktarılan sözleri anlatımın içinde ver.
 
 yeni_olgular: bu sahnede hikâyede KESİNLEŞEN kalıcı gerçekler (0-3 adet): biri bir sır açıkladı,
 bir eşya el değiştirdi, bir yer keşfedildi, bir söz verildi. Tahmin, ima ya da şüphe yazma
@@ -99,7 +114,7 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne,
                   ilkeler: list[dict], zanaat_acik: bool) -> tuple[str, str]:
     """Az önce eklenen sahneyi (durum.sahneler[-1]) denetleten istem."""
     bolumler = [
-        "[DÜNYA KANONU — değişmez gerçekler]\nKarakterler:\n"
+        f"[DÜNYA KANONU — değişmez gerçekler]\nOyuncu: {dunya.oyuncu}\nKarakterler:\n"
         + "\n".join(f"- {k.id}: {k.ad} — {k.tanim}" for k in dunya.karakterler.values())
         + "\nMekânlar:\n"
         + "\n".join(f"- {m.id}: {m.ad} — {m.tanim}" for m in dunya.mekanlar.values())
@@ -120,8 +135,9 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne,
 
     gorevler = [
         "1. iddialar: Sahnedeki somut ve kalıcı iddiaları çıkar: görünüş, sayılar, akrabalık, "
-        "sahiplik, kim neyi biliyor, kesinleşen olaylar. Anlık hareketleri ve duyguları alma. "
-        "En fazla 6. Her biri için durum:\n"
+        "sahiplik, kim neyi biliyor, kesinleşen olaylar. Anlık hareketleri, duyguları, bakışları, "
+        "atmosferi ve betimlemeyi (ses, ışık, koku, sessizlik) ALMA; yalnızca ileride doğru ya da "
+        "yanlış çıkabilecek kalıcı gerçekler. En fazla 6. Her biri için durum:\n"
         '   - "biliniyor": kanonda ya da oyun olgularında zaten var ("olgu": o id)\n'
         '   - "celisiyor": bir olguyla çelişiyor ("olgu": çelişilen id)\n'
         '   - "yeni": hiçbir yerde yok ve hikâyede kesinleşti. Tahmin, ima ya da bir karakterin '
@@ -141,11 +157,13 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne,
             + "\n".join(f"   - {i['id']}: {i['soru']}" for i in sahne_ilkeleri)
         )
         gorevler.append(
-            "5. yazar_notu: yazara bir sonraki sahne için en fazla iki cümlelik somut öneri. "
+            "5. yazar_notu: yazara bir sonraki sahne için en fazla iki cümlelik SOMUT öneri: kim ne "
+            "söyleyebilir, ne olabilir (ör. \"Nehir Hanım oda fiyatını söyleyip karşılığında oyuncunun "
+            "kim olduğunu sorabilir\"). \"Sağla\", \"güçlendir\", \"ima et\" gibi genel ifadeler yazma. "
             "Zayıf bulduğun ölçütlere ve şu genel ilkelere dayan:\n"
             + "\n".join(f"   - {i['id']}: {i['ilke']}" for i in hikaye_ilkeleri)
-            + "\n   Oyuncunun seçimlerine saygı göster: olayları belli bir yöne zorlama, "
-            "sahnenin nasıl anlatılacağını öner."
+            + "\n   Oyuncunun seçimlerine saygı göster: oyuncunun ne yapacağına karar verme, "
+            "dünyanın ve karakterlerin ona nasıl karşılık vereceğini öner."
         )
         ornek_zanaat = (
             ',\n  "zanaat": [{"ilke": "ölçüt id", "sonuc": "iyi ya da zayif", "gerekce": "bir cümle"}],'
