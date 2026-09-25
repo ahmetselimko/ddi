@@ -25,10 +25,23 @@ Her turda **oyun motoru** ([hikaye/motor.py](hikaye/motor.py)):
 
 1. **Bellek stratejisi** ile modele verilecek bağlamı kurar
 2. Bağlamı, editörün önceki turdan notlarını ve oyuncunun eylemini **yazar modele** gönderir
-3. Modelin JSON yanıtını doğrular: sahne, mekân, karakterler, replikler, yeni olgular, seçenekler.
-   Dünyada olmayan bir karakter ya da mekân uydurulmuşsa bunu **uyarı** olarak kaydeder.
+3. Modelin JSON yanıtını doğrular ve sahneyi anlatım/replik parçalarından kendisi kurar
 4. Sahneyi **editör modele** denetletir (aşağıda)
 5. Her şeyi `oturumlar/*.jsonl` dosyasına yazar
+
+### Kodla yapılan denetimler (modelden bağımsız)
+
+Bazı sorunları modele sormak yerine kod her seferinde aynı şekilde yakalar. Bulunanlar
+**uyarı** olarak kaydedilir ve editör açıksa bir sonraki turda yazara geri döner:
+
+| Denetim | Ne yapar |
+|---|---|
+| Oyuncu adına konuşma | Modelin oyuncuya yazdığı replik atılır; oyuncunun sözünü oyuncu seçer |
+| Tanışma | Adı sesli söylenmeyen karakter görünüşüyle etiketlenir ("İri yapılı kadın:"); anlatım ya da seçenek adını erken kullanırsa uyarı |
+| Tekrar | Önceki sahneden aynen kopyalanan parçalar atılır; oyuncunun zaten yaptığını öneren seçenekler ayıklanır |
+| Örnek replik | Karakter kartındaki örnek cümle aynen kullanılırsa uyarı |
+| Konuşmayan karakter | Sahnedeki karakterler hiç konuşmadıysa uyarı |
+| Bilinmeyen id | Dünyada olmayan karakter/mekân uydurulursa uyarı; konuşan adındaki küçük yazım kaymaları düzeltilir |
 
 ## Editör
 
@@ -38,7 +51,7 @@ sahne denetletilir ([hikaye/editor.py](hikaye/editor.py)).
 | `--editor` | Ne yapar |
 |---|---|
 | `yok` | Editör kapalı. Yeni olguları yazar modelin kendisi bildirir. |
-| `denetim` | Sahnedeki somut iddiaları kanona karşı sınıflar: **yeni** (kanona eklenir, model sonra ona sadık kalır), **biliniyor**, **çelişiyor** (kaydedilir, bir sonraki turda yazara düzeltme uyarısı gider). **Vaat defterini** (açılan, ilerleyen, çözülen sorular) ve **karakter değişimlerini** tutar. |
+| `denetim` | Sahnedeki somut iddiaları kanona karşı sınıflar: **yeni** (kanona eklenir, model sonra ona sadık kalır), **biliniyor**, **çelişiyor** (kaydedilir, bir sonraki turda yazara düzeltme uyarısı gider). Karakterleri kartlarına karşı denetler: **kişilik**, **konuşma üslubu**, **bilgi sızıntısı** (bilemeyeceği bir şeyi bilmek); oyuncuya bilemeyeceği bir şey atfedilmiş mi bakar. **Vaat defterini** (açılan, kanıtla ilerleyen, çözülen sorular) ve **karakter değişimlerini** tutar. |
 | `tam` (varsayılan) | + sahneyi usta yazarların derslerinden çıkarılmış ölçütlerle değerlendirir ve yazara bir sonraki sahne için not yazar. |
 
 Ölçütler [ilkeler/zanaat.yaml](ilkeler/zanaat.yaml) dosyasında; kaynakları ve
@@ -47,8 +60,20 @@ Sanderson, Andrew Stanton, Trey Parker ve Matt Stone, Robert McKee, Kurt Vonnegu
 Pixar, Mary Robinette Kowal, Dan Harmon, Orhan Pamuk. Dosyayı düzenleyerek
 ölçüt eklenip çıkarılabilir.
 
+Editörün yanıtı da kodla süzülür: tahmin ve zihinsel durum bildiren iddialar
+("görünüyor", "düşünüyor", "istekli hale geldi") atılır; kanonla kök düzeyinde büyük
+ölçüde örtüşen "yeni" iddialar "biliniyor"a çevrilir; sahne başına en fazla 3 yeni
+olgu eklenir; kanıtsız vaat ilerlemesi sayılmaz; açık bir vaadin tekrarı açılmaz. Bu
+düzeltmeler kayıtta `editor.otomatik` altında durur, editörün hata oranı buradan izlenir.
+
 Editör her tur bir model çağrısı daha demek, yani süre yaklaşık iki katına çıkar.
 Editör geçerli yanıt veremezse oyun durmaz; o tur editörsüz devam eder.
+
+## Rollere ayrı model
+
+Yazar, editör ve özet farklı modellerle çalışabilir (`--editor-model`, `--ozet-model`
+ya da `.env` içinde `EDITOR_MODEL`, `OZET_MODEL`). Özet basit bir iş, ucuz model yeter;
+editör ise ölçümlerin kaynağı, zayıf model ölçümü de zayıflatır.
 
 ## Bellek stratejileri (deneyin bağımsız değişkeni)
 
@@ -81,7 +106,9 @@ Nehir Hanım'da; kervanda on bir deve vardı...), çünkü tutarlılık bunlara 
 ölçülecek. Karakterlerin konuşma üslupları da ölçülebilir işaretler taşıyor
 ("evlat", "abi/abla", "sevgili dostum").
 
-Başka bir dünya için aynı biçimde yeni bir YAML yazıp `--dunya` ile verin.
+Başka bir dünya için aynı biçimde yeni bir YAML yazıp `--dunya` ile verin. Karakterlerde
+`adlar` alanına **yalnızca özel adlar** yazın: "yabancı", "çocuk" gibi sıradan kelimeler her
+geçtikleri yerde o karakter sanılır. `gorunen_ad`, oyuncu tanışmadan önceki etikettir.
 
 ## Klasörler
 

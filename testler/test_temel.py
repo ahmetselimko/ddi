@@ -7,11 +7,11 @@ from pathlib import Path
 from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import DunyaHatasi, dunya_yukle
 from hikaye.editor import Editor, editor_yanit_coz, ilkeleri_yukle
-from hikaye.getirim import BM25, belirtecle, kucult
+from hikaye.getirim import BM25, belirtecle, kucult, ortusme
 from hikaye.istem import sistem_istemi
 from hikaye.kayit import Kayitci
 from hikaye.llm import LLMYanit, SahteLLM
-from hikaye.motor import Motor, YanitHatasi, yanit_coz
+from hikaye.motor import Motor, YanitHatasi, tekrar_secenekleri_ayikla, yanit_coz
 
 KOK = Path(__file__).parent.parent
 DUNYA_YOLU = KOK / "dunyalar" / "tuzhan.yaml"
@@ -20,7 +20,7 @@ DUNYA_YOLU = KOK / "dunyalar" / "tuzhan.yaml"
 def gecerli_yanit(**degisen) -> str:
     veri = {
         "akis": [
-            {"anlatim": "Nehir Hanım feneri kaldırıyor."},
+            {"anlatim": "Kadın feneri kaldırıyor."},
             {"konusan": "nehir", "replik": "Otur, evlat."},
         ],
         "mekan": "han",
@@ -55,6 +55,11 @@ class GetirimTesti(unittest.TestCase):
     def test_kesme_eki_ve_f5_kok(self):
         self.assertEqual(belirtecle("Oruç'un demirhanesindeki körük"), ["oruç", "demir", "körük"])
 
+    def test_ortusme_ayni_bilgiyi_farkli_sozle_yakalar(self):
+        kanon = "Kervanlar normalde her on günde bir Tuzhan'a uğrar; kırk gündür tek bir kervan gelmedi."
+        self.assertGreaterEqual(ortusme("Kırk gündür Tuzhan'a hiç kervan uğramadı.", kanon), 0.6)
+        self.assertLess(ortusme("Selvi'nin gözleri ela.", kanon), 0.2)
+
     def test_bm25_ilgili_olguyu_bulur(self):
         dunya = dunya_yukle(DUNYA_YOLU)
         getirici = BM25([o.metin for o in dunya.olgular])
@@ -82,15 +87,69 @@ class YanitCozmeTesti(unittest.TestCase):
         with self.assertRaises(YanitHatasi):
             yanit_coz(gecerli_yanit(akis=[]), self.dunya, "han")
 
-    def test_replikler_sahne_metnine_girer(self):
+    def test_replikler_sahneye_girer_oyuncu_replikleri_atilir(self):
         metin = gecerli_yanit(akis=[
             {"anlatim": "Fener titriyor."},
             {"konusan": "oyuncu", "replik": "Kervanı arıyorum."},
             {"konusan": "nehir", "replik": "\"Otur, evlat.\""},
         ])
-        cozum, _ = yanit_coz(metin, self.dunya, "han")
-        self.assertEqual(cozum["sahne"], 'Fener titriyor.\nSen: "Kervanı arıyorum."\nNehir Hanım: "Otur, evlat."')
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han", taninan=["nehir"])
+        self.assertEqual(cozum["sahne"], 'Fener titriyor.\nNehir Hanım: "Otur, evlat."')
         self.assertEqual([(r.karakter, r.metin) for r in cozum["replikler"]], [("nehir", "Otur, evlat.")])
+        self.assertTrue(uyarilar[0].startswith("oyuncu adına replik"))
+
+    def test_tanismadan_once_gorunus_sonra_ad(self):
+        metin = gecerli_yanit(akis=[
+            {"konusan": "nehir", "replik": "Ben Nehir, bu hanın sahibiyim."},
+            {"anlatim": "Bir yabancı daha geldi mi diye kapıya bakıyor."},   # sıradan kelime, Yabancı değil
+            {"konusan": "nehir", "replik": "Otur."},
+        ])
+        cozum, _ = yanit_coz(metin, self.dunya, "han")
+        self.assertTrue(cozum["sahne"].startswith('İri yapılı kadın: "Ben Nehir'))
+        self.assertTrue(cozum["sahne"].endswith('Nehir Hanım: "Otur."'))
+        self.assertEqual(cozum["taninan"], ["nehir"])
+
+    def test_anlatimda_ad_tanisma_sayilmaz_uyari_uretir(self):
+        metin = gecerli_yanit(akis=[{"anlatim": "Nehir Hanım feneri kaldırıyor."},
+                                    {"konusan": "nehir", "replik": "Otur."}],
+                              secenekler=["Selvi'yi bul", "Otur"])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual(cozum["taninan"], [])
+        self.assertIn('İri yapılı kadın: "Otur."', cozum["sahne"])
+        self.assertEqual(len([u for u in uyarilar if "adıyla andı" in u]), 2)   # anlatım + seçenek
+
+    def test_onceki_sahneden_tekrar_atilir(self):
+        onceki = 'Kadın bardağını masaya bırakıyor, ses avluda yankılanıyor.\nİri yapılı kadın: "Adını bile söylemedi, evlat."'
+        metin = gecerli_yanit(akis=[
+            {"anlatim": "Kadın bardağını masaya bırakıyor, ses avluda yankılanıyor."},
+            {"konusan": "nehir", "replik": "Adını bile söylemedi, evlat."},
+            {"anlatim": "Sonra sesini alçaltıyor."},
+            {"konusan": "nehir", "replik": "Yedi numaralı odaya takıldı."},
+        ])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han", onceki_metin=onceki)
+        self.assertEqual(cozum["sahne"], 'Sonra sesini alçaltıyor.\nİri yapılı kadın: "Yedi numaralı odaya takıldı."')
+        self.assertEqual(len([u for u in uyarilar if "tekrarlanan" in u]), 2)
+
+    def test_ornek_replik_kopyasi_yakalanir(self):
+        metin = gecerli_yanit(akis=[{"konusan": "selvi",
+                                     "replik": "Usulen önce adınızı yazmam gerekiyor; kuraldır, kusura bakmayın."}])
+        _, uyarilar = yanit_coz(metin, self.dunya, "katiplik")
+        self.assertIn("örnek replik aynen kullanıldı: selvi", uyarilar)
+
+    def test_tekrar_eden_secenek_ayiklanir(self):
+        gecmis = ["Kervan aradığını söyle", "Çevreyi incele"]
+        secenekler, uyarilar = tekrar_secenekleri_ayikla(
+            ["Kervan aradığını söyle", "Selvi'yi bulmaya git", "Ahıra bak"], gecmis)
+        self.assertEqual(secenekler, ["Selvi'yi bulmaya git", "Ahıra bak"])
+        self.assertEqual(len(uyarilar), 1)
+        # ikiden az seçenek kalacaksa dokunma, ama uyar
+        secenekler, uyarilar = tekrar_secenekleri_ayikla(["Kervan aradığını söyle", "Ahıra bak"], gecmis)
+        self.assertEqual(len(secenekler), 2)
+        self.assertEqual(len(uyarilar), 1)
+
+    def test_zaman_okunur(self):
+        cozum, _ = yanit_coz(gecerli_yanit(zaman="1. gün, gece"), self.dunya, "han")
+        self.assertEqual(cozum["zaman"], "1. gün, gece")
 
     def test_bilinmeyen_konusan_uyari(self):
         metin = gecerli_yanit(akis=[{"konusan": "vezir", "replik": "Selam."}])
@@ -102,7 +161,7 @@ class YanitCozmeTesti(unittest.TestCase):
     def test_konusan_yazim_kaymasi_duzeltilir(self):
         metin = gecerli_yanit(akis=[{"konusan": "tekine", "replik": "Abi!"},
                                     {"konusan": "Nehir Hanım", "replik": "Otur."}])
-        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han", taninan=["tekin", "nehir"])
         self.assertEqual([r.karakter for r in cozum["replikler"]], ["tekin", "nehir"])
         self.assertIn('Tekin: "Abi!"', cozum["sahne"])
         self.assertEqual(len(uyarilar), 2)              # düzeltmeler yine de kayda geçer
@@ -201,14 +260,53 @@ class EditorTesti(unittest.TestCase):
                 {"metin": "Nehir iri", "durum": "biliniyor", "olgu": "o2"},
                 {"metin": "?", "durum": "belki"},                                # geçersiz durum
             ],
-            "vaatler": {"acilan": ["a", "b", "c"], "ilerleyen": ["v1", "v9"], "cozulen": []},
+            "vaatler": {"acilan": ["a", "b", "c"],
+                        "ilerleyen": [{"id": "v1", "kanit": "Anahtarı gösterdi."},
+                                      {"id": "v9", "kanit": "x"},                # açık değil
+                                      "v1"]},                                    # kanıtsız
+            "karakter_denetimi": [{"karakter": "vezir", "kisilik": "sapma"},
+                                  {"karakter": "nehir", "kisilik": "sapma", "bilgi": "sizinti",
+                                   "gerekce": "Sırrını hemen döktü."}],
             "karakter_degisimleri": [{"karakter": "vezir", "degisim": "x"}],
         })
         b = editor_yanit_coz(metin, self.dunya, self.durum)
         self.assertEqual([i["metin"] for i in b["iddialar"]], ["Nehir iri"])
         self.assertEqual(b["vaatler"]["acilan"], ["a", "b"])                     # en fazla 2
-        self.assertEqual(b["vaatler"]["ilerleyen"], ["v1"])
+        self.assertEqual(b["vaatler"]["ilerleyen"], [{"id": "v1", "kanit": "Anahtarı gösterdi."}])
+        self.assertEqual(b["otomatik"]["kanitsiz_vaat"], ["v9", "v1"])
+        self.assertEqual(b["karakter_denetimi"], [{"karakter": "nehir", "gerekce": "Sırrını hemen döktü.",
+                                                   "kisilik": "sapma", "konusma": "uygun", "bilgi": "sizinti"}])
         self.assertEqual(b["karakter_degisimleri"], [])
+
+    def test_kod_suzgeci(self):
+        self.durum.vaat_ac("Yedi numaralı odada ne var?", 1)
+        metin = json.dumps({
+            "iddialar": [
+                {"metin": "Selvi yorgun görünüyor.", "durum": "yeni"},
+                {"metin": "Nehir Hanım konuşmaya istekli hale geldi.", "durum": "yeni"},
+                {"metin": "Nehir Hanım'ın sol elinde üç parmak eksik.", "durum": "yeni"},
+                {"metin": "Selvi'nin gözleri ela.", "durum": "yeni"},
+            ],
+            "vaatler": {"acilan": ["Yedi numaralı odada neler var?", "Yabancı kimi arıyor?"]},
+        })
+        b = editor_yanit_coz(metin, self.dunya, self.durum)
+        self.assertEqual(b["otomatik"]["atilan_tahmin"],
+                         ["Selvi yorgun görünüyor.", "Nehir Hanım konuşmaya istekli hale geldi."])
+        self.assertEqual(b["otomatik"]["yeniden_siniflanan"], ["Nehir Hanım'ın sol elinde üç parmak eksik."])
+        self.assertEqual([(i["durum"], i["olgu"]) for i in b["iddialar"]], [("biliniyor", "o2"), ("yeni", None)])
+        self.assertEqual(b["vaatler"]["acilan"], ["Yabancı kimi arıyor?"])
+        self.assertEqual(b["otomatik"]["tekrar_vaat"], ["Yedi numaralı odada neler var?"])
+
+    def test_acilis_metni_ve_olgu_siniri(self):
+        yeni = ["Kuyunun ipi yepyeni.", "Ahırın kapısı mavi boyalı.", "Demirhanenin çatısı akıyor.",
+                "Pazarcı kadın incir satıyor."]
+        metin = json.dumps({"iddialar": (
+            [{"metin": "Güneş batarken tuz çölünü aşıp Tuzhan'a varıyorsun.", "durum": "yeni"}]
+            + [{"metin": m, "durum": "yeni"} for m in yeni])})
+        b = editor_yanit_coz(metin, self.dunya, self.durum)
+        self.assertEqual(b["otomatik"]["yeniden_siniflanan"], ["Güneş batarken tuz çölünü aşıp Tuzhan'a varıyorsun."])
+        self.assertEqual([i["metin"] for i in b["iddialar"] if i["durum"] == "yeni"], yeni[:3])
+        self.assertEqual(b["otomatik"]["fazla_olgu"], yeni[3:])
 
     def test_bulgular_duruma_islenir(self):
         self.durum.vaat_ac("Yedi numaralı odada ne var?", 1)
@@ -218,7 +316,11 @@ class EditorTesti(unittest.TestCase):
                 {"metin": "Selvi'nin gözleri ela", "durum": "yeni", "olgu": None, "ilgili": ["selvi"]},
                 {"metin": "Nehir zarif", "durum": "celisiyor", "olgu": "o2", "ilgili": []},
             ],
-            "vaatler": {"acilan": ["Yabancı kim?"], "ilerleyen": [], "cozulen": ["v1"]},
+            "vaatler": {"acilan": ["Yabancı kim?"], "ilerleyen": [],
+                        "cozulen": [{"id": "v1", "kanit": "Oda boş çıktı."}]},
+            "karakter_denetimi": [{"karakter": "nehir", "kisilik": "sapma", "konusma": "uygun",
+                                   "bilgi": "uygun", "gerekce": "Sırrını hemen döktü."}],
+            "oyuncu_bilgi_sizintisi": "Oyuncu kervandaki deve sayısını biliyor.",
             "karakter_degisimleri": [{"karakter": "nehir", "degisim": "oyuncuya ısındı"}],
             "zanaat": [],
             "yazar_notu": "Tekin'i konuştur.",
@@ -227,6 +329,8 @@ class EditorTesti(unittest.TestCase):
         self.assertEqual(self.durum.celiskiler[0].olgu_id, "o2")
         self.assertEqual([v.metin for v in self.durum.acik_vaatler], ["Yabancı kim?"])
         self.assertEqual(self.durum.vaatler[0].cozuldugu_sahne, 2)
+        self.assertEqual([(s.karakter, s.tur) for s in self.durum.karakter_sapmalari],
+                         [("nehir", "kisilik"), ("oyuncu", "bilgi")])
         self.assertEqual(self.durum.editor_notu, "Tekin'i konuştur.")
 
     def test_yazara_giden_bolumler(self):
@@ -242,6 +346,21 @@ class EditorTesti(unittest.TestCase):
 
         denetim = "\n".join(Editor("denetim").yazara_bolumler(self.dunya, self.durum))
         self.assertNotIn("EDİTÖR NOTU", denetim)         # zanaat notu yalnızca tam modda
+
+    def test_karakter_uyarisi_kartla_doner(self):
+        from hikaye.durum import KarakterSapmasi
+        self.durum.karakter_sapmalari.append(
+            KarakterSapmasi(sahne_no=1, karakter="nehir", tur="kisilik", gerekce="Sırrını hemen döktü."))
+        metin = "\n".join(Editor("denetim").yazara_bolumler(self.dunya, self.durum))
+        self.assertIn("KARAKTER UYARISI", metin)
+        self.assertIn(self.dunya.karakterler["nehir"].kisilik, metin)
+
+    def test_kod_uyarilari_yazara_doner(self):
+        self.durum.sahneler[-1].uyarilar = ["oyuncu adına replik yazıldı (atıldı): 'x'",
+                                           "konuşan id'si düzeltildi: 'tekine' → tekin"]
+        metin = "\n".join(Editor("denetim").yazara_bolumler(self.dunya, self.durum))
+        self.assertIn("oyuncu adına replik", metin)
+        self.assertNotIn("düzeltildi", metin)           # zararsız düzeltmeler yazarı meşgul etmez
 
     def test_konusmayan_karakter_uyarisi(self):
         editor = Editor("denetim")
@@ -271,12 +390,13 @@ class EditorluMotorTesti(unittest.TestCase):
 
             durum = motor.durum
             # Olgular editörden gelir (tur başına 1), yazarınkiler yok sayılır
-            self.assertEqual([o.metin for o in durum.olgular],
-                             [f"Sahte iddia {n}" for n in (2, 5, 8, 11)])
+            self.assertEqual([o.metin for o in durum.olgular], SahteLLM.YENI_OLGULAR[:4])
             self.assertEqual(len(durum.celiskiler), 4)
             self.assertEqual(len(durum.vaatler), 4)
+            self.assertEqual(len(durum.karakter_sapmalari), 4)
             self.assertTrue(any(v.cozuldugu_sahne for v in durum.vaatler))
             self.assertTrue(durum.editor_notu)
+            self.assertNotEqual(durum.zaman, dunya.baslangic_zamani)    # zaman ilerledi
 
             son = json.loads(kayitci.yol.read_text(encoding="utf-8").splitlines()[-1])
             self.assertGreater(son["baglam"]["editor_bolumleri"], 0)
@@ -295,6 +415,16 @@ class EditorluMotorTesti(unittest.TestCase):
         motor.basla()
         self.assertIsNone(motor.son_bulgular)
         self.assertEqual(len(motor.durum.olgular), 1)       # yazarın olgusuna geri düşer
+
+    def test_rollere_ayri_model(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        yazar, editor_llm, ozet_llm = SahteLLM(dunya), SahteLLM(dunya), SahteLLM(dunya)
+        motor = Motor(dunya, yazar, Bellek("ozet"), editor=Editor("denetim"),
+                      editor_llm=editor_llm, ozet_llm=ozet_llm)
+        sahne = motor.basla()
+        motor.oyna(sahne.secenekler[0])
+        self.assertEqual((yazar.cagri_sayisi, editor_llm.cagri_sayisi, ozet_llm.cagri_sayisi), (2, 2, 2))
+        self.assertEqual(yazar.editor_cagrisi, 0)
 
 
 if __name__ == "__main__":

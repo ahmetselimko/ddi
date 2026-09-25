@@ -3,25 +3,43 @@ Editör: her sahneden sonra ikinci bir model çağrısı. Sahneyi yazmaz, denetl
 
   yok      editör kapalı; yeni olguları yazar modelin kendisi bildirir
   denetim  sahnedeki iddiaları kanona karşı sınıflar (yeni / biliniyor / çelişiyor),
+           karakterleri kartlarına karşı denetler (kişilik, konuşma, bilgi sızıntısı),
            vaat defterini ve karakter değişimlerini tutar
   tam      + usta yazarların derslerinden çıkarılmış ölçütlerle değerlendirme
            ve yazara bir sonraki sahne için not (ilkeler/zanaat.yaml)
 
-Bulgular bir sonraki turda yazara geri döner: açık vaatler, çelişki uyarısı
-ve (tam modda) editör notu. Böylece editör yalnızca ölçmez, yönlendirir de.
+Editörün yanıtı kodla da süzülür (modelden bağımsız, her seferinde aynı sonuç):
+tahmin bildiren iddialar atılır, kanonla büyük ölçüde örtüşen "yeni" iddialar
+"biliniyor"a çevrilir, kanıtsız vaat ilerlemesi sayılmaz, tekrar eden vaat açılmaz.
+Bu düzeltmeler "otomatik" alanında kayda geçer; editörün hata oranı buradan da izlenir.
+
+Bulgular bir sonraki turda yazara geri döner. Böylece editör yalnızca ölçmez, yönlendirir de.
 """
+import re
 from pathlib import Path
 
 import yaml
 
 from . import istem
 from .dunya import Dunya
-from .durum import Celiski, Durum, KarakterDegisimi
+from .durum import Celiski, Durum, KarakterDegisimi, KarakterSapmasi
+from .getirim import BM25, belirtecle, kucult, ortusme
 from .llm import json_coz
 
 MODLAR = ("yok", "denetim", "tam")
 ILKE_DOSYASI = Path(__file__).parent.parent / "ilkeler" / "zanaat.yaml"
 _IDDIA_DURUMLARI = {"yeni", "biliniyor", "celisiyor"}
+# Tahmin ve zihinsel durum bildiren sözcükler: bunlar olgu değil; tutum değişimi
+# karakter_degisimleri'ne aittir.
+_TAHMIN = re.compile(r"\b(görünüyor\w*|gibi|sanki|düşün\w*|hisse\w*|olabilir\w*|muhtemelen|belki|"
+                     r"galiba|anlaşılan|sanıyor\w*|zannet\w*|varsay\w*|beklemiyor\w*|istekli|hale geldi|"
+                     r"karşıladı|önemli görüyor\w*)\b")
+BILINIYOR_ESIGI = 0.6      # iddianın köklerinin bu kadarı tek bir kanon metninde geçiyorsa
+YENI_OLGU_SINIRI = 3       # sahne başına kanona eklenecek en fazla yeni olgu
+VAAT_TEKRAR_ESIGI = 0.5
+EDITOR_OLGU_SINIRI = 15    # editöre giden oyun olgusu sayısı (uzun oyunlarda şişmesin)
+_SAPMA_TURLERI = {"kisilik": "sapma", "konusma": "sapma", "bilgi": "sizinti"}
+_TUR_ADLARI = {"kisilik": "kişilik", "konusma": "konuşma üslubu", "bilgi": "bilgi sızıntısı"}
 
 
 class EditorHatasi(ValueError):
@@ -32,15 +50,37 @@ def ilkeleri_yukle(yol: str | Path = ILKE_DOSYASI) -> list[dict]:
     return yaml.safe_load(Path(yol).read_text(encoding="utf-8"))["ilkeler"]
 
 
+def _kanon_metinleri(dunya: Dunya, durum: Durum) -> list[tuple[str | None, str]]:
+    """(olgu id'si ya da None, metin): iddiaların karşılaştırılacağı her şey."""
+    metinler = [(o.id, o.metin) for o in dunya.olgular] + [(o.id, o.metin) for o in durum.olgular]
+    metinler += [(None, f"{m.ad} {m.tanim}") for m in dunya.mekanlar.values()]
+    metinler += [(None, f"{k.ad} {k.tanim}") for k in dunya.karakterler.values()]
+    metinler += [(None, dunya.oyuncu), (None, dunya.giris)]
+    return metinler
+
+
+def _zaten_biliniyor(iddia: str, kanon: list[tuple[str | None, str]]) -> tuple[bool, str | None]:
+    if len(set(belirtecle(iddia))) < 3:
+        return False, None
+    for oid, metin in kanon:
+        if ortusme(iddia, metin) >= BILINIYOR_ESIGI:
+            return True, oid
+    return False, None
+
+
 def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
-    """Editör yanıtını doğrular; bilinmeyen id'leri ve geçersiz kayıtları ayıklar."""
+    """Editör yanıtını doğrular, bilinmeyen id'leri ayıklar ve kodla süzer."""
     try:
         veri = json_coz(metin)
     except ValueError as e:
         raise EditorHatasi(str(e)) from e
 
+    otomatik = {"yeniden_siniflanan": [], "atilan_tahmin": [], "fazla_olgu": [],
+                "tekrar_vaat": [], "kanitsiz_vaat": []}
     bilinen = set(dunya.karakterler) | set(dunya.mekanlar)
     olgu_idleri = {o.id for o in dunya.olgular} | {o.id for o in durum.olgular}
+    kanon = _kanon_metinleri(dunya, durum)
+
     iddialar = []
     for i in veri.get("iddialar") or []:
         if not isinstance(i, dict) or i.get("durum") not in _IDDIA_DURUMLARI:
@@ -48,23 +88,60 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         metin_ = str(i.get("metin") or "").strip()
         if not metin_:
             continue
+        durum_ = i["durum"]
         olgu = i.get("olgu") if i.get("olgu") in olgu_idleri else None
-        if i["durum"] == "celisiyor" and olgu is None:
+        if durum_ == "celisiyor" and olgu is None:
             continue                        # neyle çeliştiği belli olmayan çelişki sayılmaz
+        if durum_ == "yeni":
+            if _TAHMIN.search(kucult(metin_)):
+                otomatik["atilan_tahmin"].append(metin_)
+                continue
+            biliniyor, oid = _zaten_biliniyor(metin_, kanon)
+            if biliniyor:
+                otomatik["yeniden_siniflanan"].append(metin_)
+                durum_, olgu = "biliniyor", oid
+            elif sum(x["durum"] == "yeni" for x in iddialar) >= YENI_OLGU_SINIRI:
+                otomatik["fazla_olgu"].append(metin_)
+                continue
         iddialar.append({
             "metin": metin_,
-            "durum": i["durum"],
+            "durum": durum_,
             "olgu": olgu,
             "ilgili": [x for x in i.get("ilgili") or [] if x in bilinen],
         })
 
-    acik = {v.id for v in durum.acik_vaatler}
-    ham_vaatler = veri.get("vaatler") or {}
-    vaatler = {
-        "acilan": [str(m).strip() for m in ham_vaatler.get("acilan") or [] if str(m).strip()][:2],
-        "ilerleyen": [v for v in ham_vaatler.get("ilerleyen") or [] if v in acik],
-        "cozulen": [v for v in ham_vaatler.get("cozulen") or [] if v in acik],
-    }
+    acik = {v.id: v.metin for v in durum.acik_vaatler}
+    ham = veri.get("vaatler") or {}
+    acilan = []
+    for m in ham.get("acilan") or []:
+        m = str(m).strip()
+        if not m:
+            continue
+        if any(ortusme(m, onceki) >= VAAT_TEKRAR_ESIGI for onceki in list(acik.values()) + acilan):
+            otomatik["tekrar_vaat"].append(m)
+            continue
+        acilan.append(m)
+
+    def kanitli(liste):
+        sonuc = []
+        for x in liste or []:
+            if isinstance(x, dict) and x.get("id") in acik and str(x.get("kanit") or "").strip():
+                sonuc.append({"id": x["id"], "kanit": str(x["kanit"]).strip()})
+            elif x:
+                otomatik["kanitsiz_vaat"].append(x.get("id") if isinstance(x, dict) else x)
+        return sonuc
+
+    vaatler = {"acilan": acilan[:2], "ilerleyen": kanitli(ham.get("ilerleyen")),
+               "cozulen": kanitli(ham.get("cozulen"))}
+
+    karakter_denetimi = []
+    for d in veri.get("karakter_denetimi") or []:
+        if not isinstance(d, dict) or d.get("karakter") not in dunya.karakterler:
+            continue
+        denetim = {"karakter": d["karakter"], "gerekce": str(d.get("gerekce") or "").strip()}
+        for alan, kotu in _SAPMA_TURLERI.items():
+            denetim[alan] = kotu if d.get(alan) == kotu else "uygun"
+        karakter_denetimi.append(denetim)
 
     degisimler = [
         {"karakter": d["karakter"], "degisim": str(d.get("degisim") or "").strip()}
@@ -81,9 +158,12 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
     return {
         "iddialar": iddialar,
         "vaatler": vaatler,
+        "karakter_denetimi": karakter_denetimi,
+        "oyuncu_bilgi_sizintisi": str(veri.get("oyuncu_bilgi_sizintisi") or "").strip(),
         "karakter_degisimleri": degisimler,
         "zanaat": zanaat,
         "yazar_notu": str(veri.get("yazar_notu") or "").strip(),
+        "otomatik": otomatik,
     }
 
 
@@ -102,7 +182,8 @@ class Editor:
         """Son sahneyi denetler ve durumu günceller. (bulgular, yanıtlar) döndürür;
         editör geçerli yanıt veremezse bulgular None olur ve oyun sürer."""
         sahne = durum.sahneler[-1]
-        sistem, kullanici = istem.editor_istemi(dunya, durum, sahne, self.ilkeler, self.zanaat_acik)
+        sistem, kullanici = istem.editor_istemi(dunya, durum, sahne, self.ilkeler, self.zanaat_acik,
+                                                oyun_olgulari=_ilgili_oyun_olgulari(durum, sahne.metin))
         yanitlar, istek = [], kullanici
         for _ in range(deneme):
             yanit = llm.uret(sistem, istek, sicaklik=0.2)
@@ -125,12 +206,21 @@ class Editor:
                 durum.celiskiler.append(Celiski(sahne_no=no, iddia=i["metin"], olgu_id=i["olgu"]))
 
         vaatler = {v.id: v for v in durum.vaatler}
-        for vid in bulgular["vaatler"]["ilerleyen"]:
-            vaatler[vid].ilerledigi_sahneler.append(no)
-        for vid in bulgular["vaatler"]["cozulen"]:
-            vaatler[vid].cozuldugu_sahne = no
+        for x in bulgular["vaatler"]["ilerleyen"]:
+            vaatler[x["id"]].ilerledigi_sahneler.append(no)
+        for x in bulgular["vaatler"]["cozulen"]:
+            vaatler[x["id"]].cozuldugu_sahne = no
         for metin in bulgular["vaatler"]["acilan"]:
             durum.vaat_ac(metin, no)
+
+        for d in bulgular["karakter_denetimi"]:
+            for alan, kotu in _SAPMA_TURLERI.items():
+                if d[alan] == kotu:
+                    durum.karakter_sapmalari.append(
+                        KarakterSapmasi(sahne_no=no, karakter=d["karakter"], tur=alan, gerekce=d["gerekce"]))
+        if bulgular["oyuncu_bilgi_sizintisi"]:
+            durum.karakter_sapmalari.append(KarakterSapmasi(
+                sahne_no=no, karakter="oyuncu", tur="bilgi", gerekce=bulgular["oyuncu_bilgi_sizintisi"]))
 
         for d in bulgular["karakter_degisimleri"]:
             durum.karakter_degisimleri.append(KarakterDegisimi(sahne_no=no, **d))
@@ -143,7 +233,8 @@ class Editor:
         if not self.acik or not durum.sahneler:
             return []
         bolumler = []
-        simdiki = len(durum.sahneler)
+        son = durum.sahneler[-1]
+        simdiki = son.no
 
         if durum.acik_vaatler:
             bolumler.append(
@@ -162,13 +253,29 @@ class Editor:
                             for c in son_celiskiler)
             )
 
-        # Modele sorulmadan, doğrudan sayılarak bulunan sorun: karakterler sahnedeydi ama konuşmadı
-        son = durum.sahneler[-1]
+        son_sapmalar = [s for s in durum.karakter_sapmalari if s.sahne_no == simdiki]
+        if son_sapmalar:
+            satirlar = []
+            for s in son_sapmalar:
+                if s.karakter == "oyuncu":
+                    satirlar.append(f"- Anlatım oyuncuya bilemeyeceği bir şeyi bildirdi: {s.gerekce}")
+                    continue
+                k = dunya.karakterler[s.karakter]
+                hatirlatma = {"kisilik": f"Kişiliği: {k.kisilik}", "konusma": f"Konuşması: {k.konusma}",
+                              "bilgi": "Yalnızca bilebileceğini bilsin."}[s.tur]
+                satirlar.append(f"- {k.ad} ({_TUR_ADLARI[s.tur]}): {s.gerekce} → {hatirlatma}")
+            bolumler.append("[KARAKTER UYARISI — son sahnede kartından saptı]\n" + "\n".join(satirlar))
+
+        # Modele sorulmadan, doğrudan kodla bulunan sorunlar
+        kod_uyarilari = [u for u in son.uyarilar if "düzeltildi" not in u]
         konusanlar = {r.karakter for r in son.replikler}
-        susanlar = [dunya.karakterler[k].ad for k in son.karakterler if k not in konusanlar]
         if son.karakterler and not konusanlar:
-            bolumler.append(f"[DİKKAT — önceki sahnede {', '.join(susanlar)} hiç konuşmadı. "
-                            "Bu sahnede sahnedeki karakterler konuşsun ve oyuncuya cevap versin.]")
+            susanlar = ", ".join(dunya.karakterler[k].ad for k in son.karakterler)
+            kod_uyarilari.append(f"{susanlar} hiç konuşmadı; bu sahnede sahnedeki karakterler "
+                                 "konuşsun ve oyuncuya cevap versin")
+        if kod_uyarilari:
+            bolumler.append("[DİKKAT — önceki sahnede kodla bulunan sorunlar]\n"
+                            + "\n".join(f"- {u}" for u in kod_uyarilari))
 
         if self.zanaat_acik:
             tekrarlayan = _tekrarlayan_zayiflar(durum.zanaat_gecmisi)
@@ -181,6 +288,15 @@ class Editor:
             if durum.editor_notu:
                 bolumler.append(f"[EDİTÖR NOTU]\n{durum.editor_notu}")
         return bolumler
+
+
+def _ilgili_oyun_olgulari(durum: Durum, sahne_metni: str) -> list:
+    """Uzun oyunlarda editöre tüm oyun olgularını değil, sahneyle en ilgilileri gönder."""
+    if len(durum.olgular) <= EDITOR_OLGU_SINIRI:
+        return durum.olgular
+    getirici = BM25([o.metin for o in durum.olgular])
+    secilen = set(getirici.en_iyiler(sahne_metni, EDITOR_OLGU_SINIRI))
+    return [o for i, o in enumerate(durum.olgular) if i in secilen]
 
 
 def _tekrarlayan_zayiflar(gecmis: list[list[str]]) -> list[str]:

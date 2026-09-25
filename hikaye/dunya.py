@@ -17,8 +17,14 @@ class Karakter:
     tanim: str
     kisilik: str
     konusma: str
-    adlar: list[str] = field(default_factory=list)   # metinde anılma biçimleri
+    # Metinde anılma biçimleri. YALNIZCA özel adlar: "yabancı", "çocuk" gibi
+    # sıradan kelimeler her geçtiği yerde bu karakter sanılır.
+    adlar: list[str] = field(default_factory=list)
     ornek_replikler: list[str] = field(default_factory=list)
+    gorunen_ad: str = ""   # oyuncu tanışmadan önce konuşma etiketi ("İri yapılı kadın")
+
+    def __post_init__(self):
+        self.gorunen_ad = self.gorunen_ad or self.ad
 
     def kart(self) -> str:
         """İstemde kullanılan karakter kartı."""
@@ -29,7 +35,8 @@ class Karakter:
             f"  Konuşma: {self.konusma}",
         ]
         if self.ornek_replikler:
-            satirlar.append("  Örnek: " + " / ".join(f'"{r}"' for r in self.ornek_replikler))
+            satirlar.append("  Üslup örnekleri (aynen kullanma, yalnızca sesi yakala): "
+                            + " / ".join(f'"{r}"' for r in self.ornek_replikler))
         return "\n".join(satirlar)
 
 
@@ -57,6 +64,7 @@ class Dunya:
     karakterler: dict[str, Karakter]
     mekanlar: dict[str, Mekan]
     olgular: list[Olgu]
+    baslangic_zamani: str = "1. gün, akşam"
 
 
 class DunyaHatasi(ValueError):
@@ -74,6 +82,7 @@ def dunya_yukle(yol: str | Path) -> Dunya:
         karakterler={k["id"]: Karakter(**k) for k in ham.get("karakterler", [])},
         mekanlar={m["id"]: Mekan(**m) for m in ham.get("mekanlar", [])},
         olgular=[Olgu(**o) for o in ham.get("olgular", [])],
+        baslangic_zamani=ham.get("baslangic_zamani", "1. gün, akşam"),
     )
     _dogrula(dunya)
     return dunya

@@ -16,7 +16,7 @@ _KESME_EKI = re.compile(r"[’']\w*")                 # Oruç'un -> Oruç
 _KELIME = re.compile(r"[a-zçğıöşüâîû0-9]+")
 DURAK = set("""
 ve ile de da ki bir bu şu o ama fakat için gibi kadar daha çok en her ne
-mi mı mu mü ya veya hem ise değil var yok olan olarak diye sonra önce
+mi mı mu mü ya veya hem ise değil var yok olan olarak diye sonra önce hiç
 """.split())
 KOK_UZUNLUGU = 5
 
@@ -28,6 +28,15 @@ def kucult(metin: str) -> str:
 
 def kelimeler(metin: str) -> list[str]:
     return _KELIME.findall(kucult(_KESME_EKI.sub("", metin)))
+
+
+def ortusme(metin: str, diger: str) -> float:
+    """metin'in köklerinin ne kadarı diger'de de geçiyor (0-1). Aynı bilgiyi başka
+    sözcüklerle söyleyen iki cümleyi yakalamak için kaba ama modelden bağımsız ölçü."""
+    kokler = set(belirtecle(metin))
+    if not kokler:
+        return 0.0
+    return len(kokler & set(belirtecle(diger))) / len(kokler)
 
 
 def belirtecle(metin: str) -> list[str]:

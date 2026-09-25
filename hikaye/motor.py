@@ -2,72 +2,157 @@
 Oyun motoru. Bir tur:
   bağlamı kur → yazar modele sor → yanıtı doğrula → durumu güncelle
   → (editör açıksa) sahneyi denetlet → kaydet
+
+Yazar, editör ve özet için ayrı modeller kullanılabilir (ör. özet için daha ucuzu).
 """
+import re
+
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
 from .durum import Durum, Replik, Sahne
 from .editor import Editor
-from .getirim import kucult
+from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
 from .llm import json_coz
+
+
+SECENEK_TEKRAR_ESIGI = 0.8
 
 
 class YanitHatasi(ValueError):
     pass
 
 
-def akisi_birlestir(parcalar, dunya: Dunya) -> tuple[str, list[Replik], list[str]]:
-    """Anlatım ve replik parçalarından sahne metnini kurar. Konuşmalar metnin
-    içinden geçtiği için modelin repliği yazıp sahneye koymayı unutması imkânsızlaşır;
-    konuşanın kim olduğu da kesin bilinir (karakter sesi ölçümü için)."""
+def tekrar_secenekleri_ayikla(secenekler: list[str], eylemler: list[str]) -> tuple[list[str], list[str]]:
+    """Oyuncunun zaten yaptığı şeyi yeniden öneren seçenekleri atar. Geriye ikiden az
+    seçenek kalacaksa hepsini bırakır (oyuncu serbest eylem de yazabilir) ama yine uyarır."""
+    tekrarlar = [s for s in secenekler
+                 if len(set(belirtecle(s))) >= 2
+                 and any(ortusme(s, e) >= SECENEK_TEKRAR_ESIGI for e in eylemler)]
+    if not tekrarlar:
+        return secenekler, []
+    uyarilar = [f"seçenek oyuncunun zaten yaptığını tekrar ediyor: {s!r}" for s in tekrarlar]
+    kalan = [s for s in secenekler if s not in tekrarlar]
+    return (kalan if len(kalan) >= 2 else secenekler), uyarilar
+
+
+_ETIKETLI_SATIR = re.compile(r'^[^:"]{1,40}: "(.*)"$')
+
+
+def _norm(metin: str) -> str:
+    return " ".join(kelimeler(metin))
+
+
+def sahne_parcalari(metin: str) -> set[str]:
+    """Kurulmuş bir sahne metnini (etiketleri atarak) karşılaştırılabilir parçalara böler."""
+    parcalar = set()
+    for satir in metin.split("\n"):
+        eslesme = _ETIKETLI_SATIR.match(satir.strip())
+        parcalar.add(_norm(eslesme.group(1) if eslesme else satir))
+    return parcalar
+
+
+def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = frozenset()
+                    ) -> tuple[str, list[Replik], list[str], list[str]]:
+    """Anlatım ve replik parçalarından sahne metnini kurar.
+
+    - Konuşmalar metnin içinden geçtiği için modelin repliği yazıp sahneye koymayı
+      unutması imkânsızlaşır; konuşanın kim olduğu da kesin bilinir.
+    - Oyuncu adına yazılan replikler atılır: oyuncunun sözünü oyuncu seçer.
+    - Oyuncunun adını bilmediği karakterler görünüşleriyle etiketlenir; adı bir
+      replikte SESLİ söylendiği anda tanınmış sayılır. Anlatım bir karakteri oyuncu
+      tanımadan adıyla anarsa uyarı üretir.
+    - Önceki sahneden aynen tekrarlanan parçalar atılır (onceki: sahne_parcalari()).
+    - Karakter kartındaki örnek replik aynen tekrarlanmışsa uyarı üretir.
+
+    Döndürür: (metin, replikler, uyarılar, güncel tanınanlar)
+    """
+    taninan = list(taninan)
     satirlar, replikler, uyarilar = [], [], []
     for p in parcalar if isinstance(parcalar, list) else []:
         if not isinstance(p, dict):
             continue
+        ham = p.get("replik") if "replik" in p else p.get("anlatim")
+        ham = str(ham or "").strip().strip('"“”').strip()
+        if len(ham) >= 20 and _norm(ham) in onceki:
+            uyarilar.append(f"önceki sahneden aynen tekrarlanan parça atıldı: {ham[:50]!r}")
+            continue
         if "replik" in p:
-            metin = str(p.get("replik") or "").strip().strip('"“”').strip()
+            metin = ham
             if not metin:
                 continue
             konusan = p.get("konusan")
-            bulunan = None if konusan == "oyuncu" else _konusan_bul(konusan, dunya)
-            if konusan == "oyuncu":
-                ad = "Sen"
-            elif bulunan:
+            if kucult(str(konusan or "")) in ("oyuncu", "sen"):
+                uyarilar.append(f"oyuncu adına replik yazıldı (atıldı): {metin[:60]!r}")
+                continue
+            bulunan = _konusan_bul(konusan, dunya)
+            if bulunan:
                 if bulunan != konusan:
                     uyarilar.append(f"konuşan id'si düzeltildi: {konusan!r} → {bulunan}")
-                ad = dunya.karakterler[bulunan].ad
+                k = dunya.karakterler[bulunan]
+                if _ornek_kopyasi_mi(metin, k.ornek_replikler):
+                    uyarilar.append(f"örnek replik aynen kullanıldı: {bulunan}")
+                ad = k.ad if bulunan in taninan else k.gorunen_ad
                 replikler.append(Replik(bulunan, metin))
             else:
                 ad = str(konusan or "?")
                 uyarilar.append(f"replikte bilinmeyen karakter: {konusan!r}")
             satirlar.append(f'{ad}: "{metin}"')
+            taninan.extend(adi_gecenler(metin, dunya, haric=taninan))    # ad sesli söylendi
         else:
             metin = str(p.get("anlatim") or "").strip()
-            if metin:
-                satirlar.append(metin)
-    return "\n".join(satirlar), replikler, uyarilar
+            if not metin:
+                continue
+            satirlar.append(metin)
+            for kid in adi_gecenler(metin, dunya, haric=taninan):
+                uyarilar.append(f"anlatım, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
+                                "karakterini adıyla andı")
+    return "\n".join(satirlar), replikler, uyarilar, taninan
+
+
+def adi_gecenler(metin: str, dunya: Dunya, haric=()) -> list[str]:
+    """Metinde özel adı geçen karakterler (haric dışındakiler)."""
+    gecenler = kelimeler(metin)
+    bulunan = []
+    for kid, k in dunya.karakterler.items():
+        if kid in haric:
+            continue
+        adlar = [kucult(a) for a in k.adlar if len(a) >= 3]
+        if any(w.startswith(a) for w in gecenler for a in adlar):
+            bulunan.append(kid)
+    return bulunan
+
+
+def _ornek_kopyasi_mi(metin: str, ornekler: list[str]) -> bool:
+    norm = _norm(metin)
+    for ornek in ornekler:
+        o = _norm(ornek)
+        if o and (o == norm or (len(o) >= 20 and o in norm)):
+            return True
+    return False
 
 
 def _konusan_bul(konusan, dunya: Dunya) -> str | None:
     """Konuşan id'sini karakterle eşler; modelin küçük yazım kaymalarını
-    ("tekine", "Nehir Hanım") tolere eder."""
+    ("tekine", "Nehir Hanım", "iri yapılı kadın") tolere eder."""
     if konusan in dunya.karakterler:
         return konusan
     aranan = kucult(str(konusan or "")).strip()
     if len(aranan) < 3:
         return None
     for kid, k in dunya.karakterler.items():
-        adlar = [kid, kucult(k.ad)] + [kucult(a) for a in k.adlar]
+        adlar = [kid, kucult(k.ad), kucult(k.gorunen_ad)] + [kucult(a) for a in k.adlar]
         if any(aranan.startswith(a) or a.startswith(aranan) for a in adlar):
             return kid
     return None
 
 
-def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[str]]:
+def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
+              onceki_metin: str = "") -> tuple[dict, list[str]]:
     """Model yanıtını doğrular. Kurtarılabilir sorunları düzeltip uyarı olarak
     döndürür (bilinmeyen id'ler tutarsızlık işaretidir, kayda geçer); sahne ya da
-    seçenek yoksa YanitHatasi fırlatır."""
+    seçenek yoksa YanitHatasi fırlatır. onceki_metin: bir önceki sahne (tekrar denetimi)."""
     try:
         veri = json_coz(metin)
     except ValueError as e:
@@ -75,11 +160,12 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
 
     uyarilar = []
     if veri.get("akis"):
-        sahne, replikler, akis_uyarilari = akisi_birlestir(veri["akis"], dunya)
+        onceki = sahne_parcalari(onceki_metin) if onceki_metin else frozenset()
+        sahne, replikler, akis_uyarilari, taninan = akisi_birlestir(veri["akis"], dunya, taninan, onceki)
         uyarilar.extend(akis_uyarilari)
     else:
         # Eski biçim: tek parça metin. Replikler metinden ayrı geldiği için güvenilmez.
-        sahne, replikler = str(veri.get("sahne") or "").strip(), []
+        sahne, replikler, taninan = str(veri.get("sahne") or "").strip(), [], list(taninan)
         if sahne:
             uyarilar.append("akış yerine düz sahne metni döndü")
     if not sahne:
@@ -87,6 +173,9 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
     secenekler = [str(s).strip() for s in veri.get("secenekler") or [] if str(s).strip()]
     if not secenekler:
         raise YanitHatasi("Seçenek yok.")
+    for kid in adi_gecenler(" ".join(secenekler), dunya, haric=taninan):
+        uyarilar.append(f"seçenekler, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
+                        "karakterini adıyla andı")
 
     mekan = veri.get("mekan")
     if mekan not in dunya.mekanlar:
@@ -110,8 +199,10 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
     return {
         "sahne": sahne,
         "mekan": mekan,
+        "zaman": str(veri.get("zaman") or "").strip(),
         "karakterler": karakterler,
         "replikler": replikler,
+        "taninan": taninan,
         "yeni_olgular": yeni_olgular,
         "secenekler": secenekler[:4],
     }, uyarilar
@@ -119,14 +210,16 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str) -> tuple[dict, list[s
 
 class Motor:
     def __init__(self, dunya: Dunya, llm, bellek: Bellek, kayitci: Kayitci | None = None,
-                 editor: Editor | None = None, deneme: int = 2):
+                 editor: Editor | None = None, deneme: int = 2, editor_llm=None, ozet_llm=None):
         self.dunya = dunya
-        self.llm = llm
+        self.llm = llm                          # yazar
+        self.editor_llm = editor_llm or llm
+        self.ozet_llm = ozet_llm or llm
         self.bellek = bellek
         self.kayitci = kayitci
         self.editor = editor if editor and editor.acik else None
         self.deneme = deneme
-        self.durum = Durum(mekan=dunya.baslangic_mekan)
+        self.durum = Durum(mekan=dunya.baslangic_mekan, zaman=dunya.baslangic_zamani)
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
 
     def basla(self) -> Sahne:
@@ -142,8 +235,10 @@ class Motor:
     def _tur(self, eylem: str | None) -> Sahne:
         baglam = self.bellek.baglam(self.dunya, self.durum, eylem)
         ek = self.editor.yazara_bolumler(self.dunya, self.durum) if self.editor else []
+        onceki_eylemler = [s.eylem for s in self.durum.sahneler if s.eylem]
         sistem = istem.sistem_istemi(self.dunya)
-        kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek)
+        kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek, zaman=self.durum.zaman,
+                                       taninan=self.durum.taninan, eylemler=onceki_eylemler)
 
         yanitlar, hatalar = [], []
         istek = kullanici
@@ -151,13 +246,19 @@ class Motor:
             yanit = self.llm.uret(sistem, istek)
             yanitlar.append(yanit)
             try:
-                cozum, uyarilar = yanit_coz(yanit.metin, self.dunya, self.durum.mekan)
+                onceki_metin = self.durum.sahneler[-1].metin if self.durum.sahneler else ""
+                cozum, uyarilar = yanit_coz(yanit.metin, self.dunya, self.durum.mekan,
+                                            self.durum.taninan, onceki_metin)
                 break
             except YanitHatasi as e:
                 hatalar.append(str(e))
                 istek = f"{kullanici}\n\nÖnceki yanıtın geçersizdi ({e}). Yalnızca istenen JSON'u döndür."
         else:
             raise YanitHatasi(f"Model {self.deneme} denemede geçerli yanıt vermedi: {hatalar}")
+
+        cozum["secenekler"], tekrar_uyarilari = tekrar_secenekleri_ayikla(
+            cozum["secenekler"], onceki_eylemler + ([eylem] if eylem else []))
+        uyarilar.extend(tekrar_uyarilari)
 
         no = len(self.durum.sahneler) + 1
         sahne = Sahne(
@@ -168,21 +269,25 @@ class Motor:
             karakterler=cozum["karakterler"],
             replikler=cozum["replikler"],
             secenekler=cozum["secenekler"],
+            zaman=cozum["zaman"] or self.durum.zaman,
+            uyarilar=uyarilar,
         )
         self.durum.sahneler.append(sahne)
         self.durum.mekan = sahne.mekan
+        self.durum.zaman = sahne.zaman
+        self.durum.taninan = cozum["taninan"]
         olgu_sayisi = len(self.durum.olgular)
 
         # Editör açıksa yeni olguların kaynağı editördür (kanona karşı sınıflanmış
         # iddialar); kapalıysa ya da başarısız olursa yazarın bildirdikleri.
         self.son_bulgular, editor_yanitlari = None, []
         if self.editor:
-            self.son_bulgular, editor_yanitlari = self.editor.denetle(self.dunya, self.durum, self.llm)
+            self.son_bulgular, editor_yanitlari = self.editor.denetle(self.dunya, self.durum, self.editor_llm)
         if self.son_bulgular is None:
             for m, ilgili in cozum["yeni_olgular"]:
                 self.durum.olgu_ekle(m, ilgili, no)
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
-        ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.llm)
+        ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.ozet_llm)
 
         if self.kayitci:
             cagrilar = yanitlar + editor_yanitlari + ([ozet_yaniti] if ozet_yaniti else [])
@@ -195,6 +300,7 @@ class Motor:
                 editor=self.son_bulgular,
                 editor_basarisiz=bool(self.editor) and self.son_bulgular is None,
                 acik_vaatler=[v.id for v in self.durum.acik_vaatler],
+                taninan=self.durum.taninan,
                 uyarilar=uyarilar,
                 hatalar=hatalar,
                 baglam={

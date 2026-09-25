@@ -10,12 +10,18 @@ ton: >-
 oyuncu: >-
   Kasabaya yeni gelen genç bir haritacı. Kırk gündür haber alınamayan Sarıca
   kervanının izini sürmek için bir tüccar loncası tarafından tutuldu. Yanında
-  bir pusula, boş bir harita defteri ve on beş akçe var.
+  bir pusula, boş bir harita defteri ve on beş akçe var. Kasabada kimse onu
+  tanımıyor ve geleceğinden kimsenin haberi yok. Kasabadakilerin adlarını bilmiyor.
 giris: >-
   Güneş batarken tuz çölünü aşıp Tuzhan'a varıyorsun. Kervansarayın avlusu
-  bomboş; ahırda tek bir at bile yok. Kapının önünde elinde fenerle biri seni
-  bekliyor.
+  bomboş; ahırda tek bir at bile yok. Kapının önünde elinde fenerle duran biri,
+  yaklaştığını görünce başını kaldırıp seni süzüyor.
 baslangic_mekan: han
+baslangic_zamani: 1. gün, gün batımı
+
+# adlar: metinde bu karakteri gösteren ÖZEL adlar. "yabancı", "çocuk" gibi
+#        sıradan kelimeler yazma; her geçtikleri yerde bu karakter sanılır.
+# gorunen_ad: oyuncu adını öğrenmeden önce konuşma etiketi.
 
 mekanlar:
   - id: han
@@ -37,7 +43,8 @@ mekanlar:
 karakterler:
   - id: nehir
     ad: Nehir Hanım
-    adlar: [nehir, hancı]
+    adlar: [nehir]
+    gorunen_ad: İri yapılı kadın
     tanim: Hanın sahibi, elli yaşlarında, iri yapılı bir kadın.
     kisilik: Sert ve şüpheci ama misafirini korur. Kasabanın dedikodusunu bilir, kolay paylaşmaz.
     konusma: >-
@@ -49,7 +56,8 @@ karakterler:
 
   - id: selvi
     ad: Kâtip Selvi
-    adlar: [selvi, kâtip]
+    adlar: [selvi]
+    gorunen_ad: Genç kâtip
     tanim: Kasabanın resmî kâtibi, yirmili yaşlarında, parmakları mürekkep lekeli bir genç kadın.
     kisilik: Meraklı, titiz, kuralcı. Kayıp kervanı ciddiye alan tek kişi.
     konusma: >-
@@ -61,7 +69,8 @@ karakterler:
 
   - id: oruc
     ad: Demirci Oruç
-    adlar: [oruç, demirci]
+    adlar: [oruç]
+    gorunen_ad: Yaşlı demirci
     tanim: Altmışlarında, kolları yanık izleriyle dolu, yavaş hareket eden bir demirci.
     kisilik: Az konuşur, çok dinler. Kimseye borçlu kalmaz. Tuz gölünden korkar ama bunu saklar.
     konusma: >-
@@ -73,7 +82,8 @@ karakterler:
 
   - id: tekin
     ad: Tekin
-    adlar: [tekin, çocuk, oğlan]
+    adlar: [tekin]
+    gorunen_ad: Yalınayak çocuk
     tanim: Oruç'un on yaşındaki yeğeni. Çıplak ayaklı, her yere giren bir çocuk.
     kisilik: Cesur, lafı bitmeyen, sır tutamayan. Mavi ışıkları gördüğüne yemin eder.
     konusma: >-
@@ -85,7 +95,7 @@ karakterler:
 
   - id: yabanci
     ad: Mavi Pelerinli Yabancı
-    adlar: [yabancı, pelerinli]
+    adlar: []            # gerçek adı kimse bilmiyor; görünüşüyle anılır
     tanim: İki gün önce kasabaya gelen, yüzünü pelerininin gölgesinde tutan biri.
     kisilik: Sakin, alaycı, her şeyi bildiğini ima eder. Asıl amacını saklar.
     konusma: Sorulara soruyla cevap verir. Nazik ama mesafeli; "sevgili dostum" der.

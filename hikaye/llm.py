@@ -127,6 +127,7 @@ class SahteLLM:
         self._karakterler = list(dunya.karakterler)
         self._olgular = [o.id for o in dunya.olgular]
         self.cagri_sayisi = 0
+        self.editor_cagrisi = 0
 
     def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
         self.cagri_sayisi += 1
@@ -142,21 +143,39 @@ class SahteLLM:
                 {"konusan": k, "replik": "Buradayım."},
             ],
             "mekan": self._mekanlar[n % len(self._mekanlar)],
+            "zaman": f"{n}. gün, akşam",
             "karakterler": [k],
             "yeni_olgular": [{"metin": f"Sahte olgu {n}: körük onarıldı.", "ilgili": [k]}],
             "secenekler": [f"Seçenek {n}.{i}" for i in (1, 2, 3)],
         }
         return LLMYanit(metin=json.dumps(veri, ensure_ascii=False), sure=0.0)
 
+    # Birbiriyle ve demo kanonla örtüşmeyen metinler: editörün tekrar denetimi bunları ayrı sayar
+    YENI_OLGULAR = ["Kuyunun ipi yepyeni.", "Ahırın kapısı mavi boyalı.", "Demirhanenin çatısı akıyor.",
+                    "Rafta kırmızı ciltli bir kitap duruyor.", "Kulenin dibinde bir eşek bağlı.",
+                    "Pazarcı kadın incir satıyor."]
+    SORULAR = ["Kuyu neden kurudu?", "Kulede kim yaşıyor?", "Mavi ışıklar nereden geliyor?",
+               "Kâhyanın mektubu nerede?", "Pazar yeri niçin kapandı?", "Eski harita kimin elinde?"]
+
     def _editor_yaniti(self, n: int, kullanici: str) -> dict:
-        """Her turda: bir yeni iddia, bir çelişki, bir yeni vaat; açık bir vaat varsa onu çözer."""
+        """Her editör çağrısında: bir yeni iddia, bir çelişki, bir yeni vaat, bir karakter
+        sapması; açık bir vaat varsa onu çözer."""
+        i = self.editor_cagrisi
+        self.editor_cagrisi += 1
         acik_vaatler = re.findall(r"^- \[(v\d+)\]", kullanici, re.M)
         yanit = {
             "iddialar": [
-                {"metin": f"Sahte iddia {n}", "durum": "yeni", "olgu": None, "ilgili": []},
+                {"metin": self.YENI_OLGULAR[i % len(self.YENI_OLGULAR)], "durum": "yeni", "olgu": None, "ilgili": []},
                 {"metin": f"Sahte çelişki {n}", "durum": "celisiyor", "olgu": self._olgular[0], "ilgili": []},
             ],
-            "vaatler": {"acilan": [f"Sahte soru {n}?"], "ilerleyen": [], "cozulen": acik_vaatler[:1]},
+            "vaatler": {
+                "acilan": [self.SORULAR[i % len(self.SORULAR)]],
+                "ilerleyen": [],
+                "cozulen": [{"id": v, "kanit": "Sahte kanıt."} for v in acik_vaatler[:1]],
+            },
+            "karakter_denetimi": [{"karakter": self._karakterler[0], "kisilik": "sapma",
+                                   "konusma": "uygun", "bilgi": "uygun", "gerekce": f"Sahte sapma {n}."}],
+            "oyuncu_bilgi_sizintisi": "",
             "karakter_degisimleri": [{"karakter": self._karakterler[0], "degisim": f"Sahte değişim {n}"}],
         }
         if "zanaat:" in kullanici:

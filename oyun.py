@@ -10,6 +10,7 @@ Türkçe interaktif hikâye oyunu — komut satırı.
 Oyunda seçeneğin numarasını ya da serbest bir eylem yaz; çıkmak için q.
 """
 import argparse
+import os
 import random
 import sys
 import textwrap
@@ -26,7 +27,8 @@ KOK = Path(__file__).parent
 
 
 def sahne_yazdir(sahne, dunya) -> None:
-    print(f"\n── Sahne {sahne.no} · {dunya.mekanlar[sahne.mekan].ad} " + "─" * 30)
+    zaman = f" · {sahne.zaman}" if sahne.zaman else ""
+    print(f"\n── Sahne {sahne.no} · {dunya.mekanlar[sahne.mekan].ad}{zaman} " + "─" * 30)
     for paragraf in sahne.metin.split("\n"):
         if paragraf.strip():
             print(textwrap.fill(paragraf.strip(), 88))
@@ -44,13 +46,29 @@ def bulgulari_yazdir(motor) -> None:
     yeni = [i["metin"] for i in b["iddialar"] if i["durum"] == "yeni"]
     celisen = [f'{i["metin"]} ↔ {i["olgu"]}' for i in b["iddialar"] if i["durum"] == "celisiyor"]
     v = b["vaatler"]
+    sapmalar = [f'{d["karakter"]} ({alan}): {d["gerekce"]}' for d in b["karakter_denetimi"]
+                for alan in ("kisilik", "konusma", "bilgi") if d[alan] != "uygun"]
+    if b["oyuncu_bilgi_sizintisi"]:
+        sapmalar.append(f'oyuncu (bilgi): {b["oyuncu_bilgi_sizintisi"]}')
+    oto = b["otomatik"]
+    duzeltmeler = [f"{len(oto[k])} {ad}" for k, ad in (
+        ("yeniden_siniflanan", "olgu zaten biliniyordu"), ("atilan_tahmin", "tahmin atıldı"),
+        ("fazla_olgu", "sınır aşan olgu atıldı"),
+        ("tekrar_vaat", "tekrar vaat atıldı"), ("kanitsiz_vaat", "kanıtsız ilerleme sayılmadı")) if oto[k]]
     print("\n  ┌ editör")
-    for etiket, liste in (("yeni olgu", yeni), ("ÇELİŞKİ", celisen), ("yeni vaat", v["acilan"]),
-                          ("ilerleyen vaat", v["ilerleyen"]), ("çözülen vaat", v["cozulen"]),
+    for etiket, liste in (("yeni olgu", yeni), ("ÇELİŞKİ", celisen), ("KARAKTER", sapmalar),
+                          ("yeni vaat", v["acilan"]),
+                          ("ilerleyen vaat", [f'{x["id"]}: {x["kanit"]}' for x in v["ilerleyen"]]),
+                          ("çözülen vaat", [f'{x["id"]}: {x["kanit"]}' for x in v["cozulen"]]),
                           ("karakter değişimi", [f'{d["karakter"]}: {d["degisim"]}'
                                                  for d in b["karakter_degisimleri"]])):
         for oge in liste:
             print(f"  │ {etiket}: {oge}")
+    kod = [u for u in motor.durum.sahneler[-1].uyarilar if "düzeltildi" not in u]
+    for u in kod:
+        print(f"  │ kod: {u}")
+    if duzeltmeler:
+        print(f"  │ otomatik düzeltme: {', '.join(duzeltmeler)}")
     zayif = [z["ilke"] for z in b["zanaat"] if z["sonuc"] == "zayif"]
     if b["zanaat"]:
         print(f"  │ zanaat: {len(b['zanaat']) - len(zayif)}/{len(b['zanaat'])} iyi"
@@ -66,7 +84,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Türkçe interaktif hikâye oyunu")
     ap.add_argument("--dunya", default=str(KOK / "dunyalar" / "tuzhan.yaml"), help="Dünya dosyası (YAML)")
     ap.add_argument("--llm", choices=["gemini", "yerel", "sahte"], default="gemini", help="Dil modeli arka ucu")
-    ap.add_argument("--model", help="Model adı (verilmezse .env ya da arka ucun varsayılanı)")
+    ap.add_argument("--model", help="Yazar modelin adı (verilmezse .env ya da arka ucun varsayılanı)")
+    ap.add_argument("--editor-model", help="Editör için ayrı model (varsayılan: .env EDITOR_MODEL ya da yazarınki)")
+    ap.add_argument("--ozet-model", help="Özet için ayrı model (varsayılan: .env OZET_MODEL ya da yazarınki)")
     ap.add_argument("--bellek", choices=STRATEJILER, default="ozet+kanon", help="Bellek stratejisi")
     ap.add_argument("--editor", choices=MODLAR, default="tam",
                     help="yok: editörsüz · denetim: tutarlılık + vaat defteri · tam: + usta yazar ölçütleri")
@@ -78,13 +98,24 @@ def main() -> None:
     env_yukle(KOK / ".env")
     dunya = dunya_yukle(args.dunya)
     llm = llm_olustur(args.llm, dunya=dunya, model=args.model)
-    kayitci = Kayitci(KOK / "oturumlar", meta={
-        "dunya": dunya.ad, "llm": llm.ad, "bellek": args.bellek, "editor": args.editor,
-        "otomatik": args.otomatik, "tohum": args.tohum,
-    })
-    motor = Motor(dunya, llm, Bellek(args.bellek), kayitci, editor=Editor(args.editor))
+    editor_modeli = args.editor_model or os.environ.get("EDITOR_MODEL")
+    ozet_modeli = args.ozet_model or os.environ.get("OZET_MODEL")
+    editor_llm = llm_olustur(args.llm, dunya=dunya, model=editor_modeli) if editor_modeli else llm
+    ozet_llm = llm_olustur(args.llm, dunya=dunya, model=ozet_modeli) if ozet_modeli else llm
 
-    print(f"{dunya.ad} · model: {llm.ad} · bellek: {args.bellek} · editör: {args.editor}")
+    kayitci = Kayitci(KOK / "oturumlar", meta={
+        "dunya": dunya.ad, "llm": llm.ad, "editor_llm": editor_llm.ad, "ozet_llm": ozet_llm.ad,
+        "bellek": args.bellek, "editor": args.editor, "otomatik": args.otomatik, "tohum": args.tohum,
+    })
+    motor = Motor(dunya, llm, Bellek(args.bellek), kayitci, editor=Editor(args.editor),
+                  editor_llm=editor_llm, ozet_llm=ozet_llm)
+
+    roller = f"model: {llm.ad}"
+    if editor_llm is not llm:
+        roller += f" · editör modeli: {editor_llm.ad}"
+    if ozet_llm is not llm:
+        roller += f" · özet modeli: {ozet_llm.ad}"
+    print(f"{dunya.ad} · {roller} · bellek: {args.bellek} · editör: {args.editor}")
     sahne = motor.basla()
     sahne_yazdir(sahne, dunya)
     if args.ayrinti:

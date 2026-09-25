@@ -19,6 +19,8 @@ class Sahne:
     karakterler: list[str]
     replikler: list[Replik]
     secenekler: list[str]
+    zaman: str = ""
+    uyarilar: list[str] = field(default_factory=list)   # kodla bulunan sorunlar (yazara geri döner)
 
 
 @dataclass
@@ -59,15 +61,27 @@ class KarakterDegisimi:
 
 
 @dataclass
+class KarakterSapmasi:
+    """Editörün bulduğu karakter tutarsızlığı. tur: kisilik | konusma | bilgi"""
+    sahne_no: int
+    karakter: str
+    tur: str
+    gerekce: str
+
+
+@dataclass
 class Durum:
     mekan: str
+    zaman: str = ""
     sahneler: list[Sahne] = field(default_factory=list)
     olgular: list[OyunOlgusu] = field(default_factory=list)
     ozet: str = ""
+    taninan: list[str] = field(default_factory=list)   # oyuncunun adını öğrendiği karakterler
     # Editör açıkken dolanlar
     vaatler: list[Vaat] = field(default_factory=list)
     celiskiler: list[Celiski] = field(default_factory=list)
     karakter_degisimleri: list[KarakterDegisimi] = field(default_factory=list)
+    karakter_sapmalari: list[KarakterSapmasi] = field(default_factory=list)
     editor_notu: str = ""
     zanaat_gecmisi: list[list[str]] = field(default_factory=list)   # sahne başına zayıf ölçütler
 
