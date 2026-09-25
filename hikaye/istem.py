@@ -24,7 +24,9 @@ KURALLAR:
    bir karakter söylemeden oyuncu biliyormuş gibi anlatma. SEÇENEKLER de buna uyar: oyuncu kimsenin
    bahsetmediği bir odayı, görmediği bir kişiyi soramaz.
 4. Karakterler de yalnızca bilebilecekleri şeyleri bilir. Oyuncunun kim olduğunu ve neden geldiğini ancak
-   oyuncu kendini tanıttıysa ya da biri onlara anlattıysa bilirler.
+   oyuncu kendini tanıttıysa ya da biri onlara anlattıysa bilirler. Önceki sahnelerde öğrendiklerini de
+   hatırlarlar; aynı şeyi yeniden öğreniyormuş gibi tepki vermezler. Kanondaki olgulara aykırı konuşmazlar;
+   kişilikleri gerektiriyorsa yalan söyleyebilirler ama bunu anlatımda sezdir.
 5. Her sahnede bir şey değişsin: yeni bir bilgi, bir olay, bir engel, bir pazarlık ya da ilişkide bir kırılma.
    Yalnızca mekân ve atmosfer anlatan sahne yazma.
 6. Sahnede karakter varsa konuşur: en az 2 replik. Betimleme sahnenin en fazla üçte biri olsun.
@@ -39,7 +41,9 @@ KURALLAR:
     kurumlar kapalıdır.
 11. Sahneyi karakterlerin tepkisinden SONRA, oyuncunun karar vermesi gereken bir anda bitir.
 12. Seçenekleri ikinci tekil emir kipinde yaz ("... sor", "... git"). Birbirinden farklı yönlere açılsınlar;
-    oyuncunun zaten yaptığı ya da sorduğu şeyi tekrar önerme.
+    oyuncunun zaten yaptığı ya da sorduğu şeyi tekrar önerme. Oyuncuya bir şey söyleten seçenekte ne
+    söyleyeceği açık olsun ve yalnızca bildiklerinden oluşsun ("Loncanın sana ayrıntı vermediğini söyle");
+    içeriği belirsiz "... açıkla", "... anlat" seçenekleri yazma. "... gözlemle" gibi edilgen seçenekler yazma.
 13. Oyuncu dünyaya aykırı bir şey yapmaya çalışırsa, bunun neden olmadığını hikâyenin içinde göster.
 14. Yalnızca aşağıdaki biçimde JSON döndür, başka hiçbir şey yazma.
 
@@ -52,6 +56,7 @@ KURALLAR:
   "mekan": "sahnenin geçtiği mekânın id'si (yukarıdaki listeden)",
   "zaman": "sahne sonundaki gün ve vakit, ör. \\"1. gün, gece\\"",
   "karakterler": ["sahnede bulunan karakterlerin id'leri"],
+  "tanisilan": ["bu sahnede oyuncunun ADINI öğrendiği karakterlerin id'leri (kendini tanıttı ya da biri onu adıyla andı)"],
   "yeni_olgular": [{{"metin": "bu sahnede kesinleşen yeni bir gerçek", "ilgili": ["karakter/mekân id'leri"]}}],
   "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
 }}
@@ -161,9 +166,12 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     if oyun_olgulari:
         bolumler.append("[OYUNDA KESİNLEŞEN OLGULAR]\n"
                         + "\n".join(f"- [{o.id}] {o.metin}" for o in oyun_olgulari))
-    kartlar = [dunya.karakterler[k].kart() for k in sahne.karakterler]
+    # Sahnede bulunanlar ve sahnede adı geçenler: "Selvi ağzı sıkıdır" gibi bir sözün
+    # Selvi'nin kartıyla çeliştiğini görebilmek için Selvi sahnede olmasa da kartı gerekir
+    ilgili = list(dict.fromkeys(sahne.karakterler + dunya.adi_gecenler(sahne.metin)))
+    kartlar = [dunya.karakterler[k].kart() for k in ilgili]
     if kartlar:
-        bolumler.append("[SAHNEDEKİ KARAKTERLERİN KARTLARI]\n" + "\n\n".join(kartlar))
+        bolumler.append("[SAHNEDEKİ YA DA ADI GEÇEN KARAKTERLERİN KARTLARI]\n" + "\n\n".join(kartlar))
     acik = [v for v in durum.acik_vaatler if v.acildigi_sahne < sahne.no]
     if acik:
         bolumler.append("[AÇIK VAATLER — okurun cevabını beklediği sorular]\n"
@@ -184,8 +192,13 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         '   - "biliniyor": kanonda, mekân/karakter tanımlarında ya da oyun olgularında zaten var '
         '("olgu": o id; mekân/karakter tanımıysa null). "yeni" demeden önce hepsine tek tek bak: '
         "aynı bilgiyi başka sözcüklerle söyleyen varsa biliniyordur.\n"
-        '   - "celisiyor": bir olguyla çelişiyor ("olgu": çelişilen id)\n'
+        '   - "celisiyor": bir olguyla çelişiyor ("olgu": çelişilen id). Karakterlerin SÖZLERİNİ de '
+        "kanona karşı denetle (ör. biri kilitli bir odaya \"boş\" diyorsa ya da biri dönmüşken "
+        "\"kimse dönmedi\" diyorsa çelişkidir).\n"
         '   - "yeni": hiçbir yerde yok ve hikâyede kesinleşti.\n'
+        "   Bir karakterin BAŞKA BİRİ hakkındaki sözü (\"Selvi ağzı sıkıdır\") dünya olgusu değil, onun "
+        "görüşüdür: yazacaksan \"Nehir Hanım'a göre Selvi ağzı sıkıdır\" biçiminde yaz. Görüş, "
+        "konu edilen karakterin kartıyla çelişiyorsa kartı esas al.\n"
         "   ALMA: anlık durumlar (\"Tekin'in elinde çorba var\"), görünen haller (\"Selvi yorgun "
         "görünüyor\"), duygu, düşünce ve tutumlar (\"Nehir acısının dinmediğini düşünüyor\", \"konuşmaya "
         "istekli hale geldi\" — tutum değişimi karakter_degisimleri'ne yazılır), karakterlerin "
@@ -230,7 +243,9 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
             "Zayıf bulduğun ölçütlere ve şu genel ilkelere dayan:\n"
             + "\n".join(f"   - {i['id']}: {i['ilke']}" for i in hikaye_ilkeleri)
             + "\n   Oyuncunun seçimlerine saygı göster: oyuncunun ne yapacağına karar verme, "
-            "dünyanın ve karakterlerin ona nasıl karşılık vereceğini öner."
+            "dünyanın ve karakterlerin ona nasıl karşılık vereceğini öner. Karakterleri kendi "
+            "kartlarına göre öner; başka bir karakterin onlar hakkındaki sözüne göre değil. "
+            "Soru sorma, öneri yaz."
         )
         ornek_zanaat = (
             ',\n  "zanaat": [{"ilke": "ölçüt id", "sonuc": "iyi ya da zayif", "gerekce": "bir cümle"}],'

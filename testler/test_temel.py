@@ -118,6 +118,29 @@ class YanitCozmeTesti(unittest.TestCase):
         self.assertIn('İri yapılı kadın: "Otur."', cozum["sahne"])
         self.assertEqual(len([u for u in uyarilar if "adıyla andı" in u]), 2)   # anlatım + seçenek
 
+    def test_anlatimda_tanitma_tanisma_sayilir(self):
+        metin = gecerli_yanit(akis=[{"anlatim": "Kadın, adını Nehir olarak tanıtıyor."},
+                                    {"konusan": "nehir", "replik": "Otur."},
+                                    {"anlatim": "Nehir Hanım feneri bırakıyor."}])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual(cozum["taninan"], ["nehir"])
+        self.assertIn('Nehir Hanım: "Otur."', cozum["sahne"])
+        self.assertEqual([u for u in uyarilar if "adıyla andı" in u], [])
+
+    def test_yazarin_bildirdigi_tanisma(self):
+        metin = gecerli_yanit(akis=[{"anlatim": "Nehir Hanım başını sallıyor."},
+                                    {"konusan": "nehir", "replik": "Otur."}],
+                              tanisilan=["nehir", "vezir"])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual(cozum["taninan"], ["nehir"])
+        self.assertEqual([u for u in uyarilar if "adıyla andı" in u], [])
+
+    def test_ayni_uyari_bir_kez(self):
+        metin = gecerli_yanit(akis=[{"anlatim": "Selvi'yi düşünüyorsun."}, {"anlatim": "Selvi uzakta."},
+                                    {"konusan": "nehir", "replik": "Otur."}])
+        _, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual(len([u for u in uyarilar if "Kâtip Selvi" in u]), 1)
+
     def test_onceki_sahneden_tekrar_atilir(self):
         onceki = 'Kadın bardağını masaya bırakıyor, ses avluda yankılanıyor.\nİri yapılı kadın: "Adını bile söylemedi, evlat."'
         metin = gecerli_yanit(akis=[
@@ -295,6 +318,7 @@ class EditorTesti(unittest.TestCase):
             "iddialar": [
                 {"metin": "Selvi yorgun görünüyor.", "durum": "yeni"},
                 {"metin": "Nehir Hanım konuşmaya istekli hale geldi.", "durum": "yeni"},
+                {"metin": "Nehir Hanım hâlâ mutfakta.", "durum": "yeni"},
                 {"metin": "Nehir Hanım'ın sol elinde üç parmak eksik.", "durum": "yeni"},
                 {"metin": "Selvi'nin gözleri ela.", "durum": "yeni"},
             ],
@@ -302,11 +326,19 @@ class EditorTesti(unittest.TestCase):
         })
         b = editor_yanit_coz(metin, self.dunya, self.durum)
         self.assertEqual(b["otomatik"]["atilan_tahmin"],
-                         ["Selvi yorgun görünüyor.", "Nehir Hanım konuşmaya istekli hale geldi."])
+                         ["Selvi yorgun görünüyor.", "Nehir Hanım konuşmaya istekli hale geldi.",
+                          "Nehir Hanım hâlâ mutfakta."])
         self.assertEqual(b["otomatik"]["yeniden_siniflanan"], ["Nehir Hanım'ın sol elinde üç parmak eksik."])
         self.assertEqual([(i["durum"], i["olgu"]) for i in b["iddialar"]], [("biliniyor", "o2"), ("yeni", None)])
         self.assertEqual(b["vaatler"]["acilan"], ["Yabancı kimi arıyor?"])
         self.assertEqual(b["otomatik"]["tekrar_vaat"], ["Yedi numaralı odada neler var?"])
+
+    def test_editor_adi_gecen_karakterin_kartini_gorur(self):
+        from hikaye.istem import editor_istemi
+        sahne = self.durum.sahneler[-1]
+        sahne.karakterler, sahne.metin = ["nehir"], 'İri yapılı kadın: "Kâtip Selvi ağzı sıkıdır."'
+        _, kullanici = editor_istemi(self.dunya, self.durum, sahne, [], zanaat_acik=False)
+        self.assertIn(self.dunya.karakterler["selvi"].kisilik, kullanici)
 
     def test_acilis_metni_ve_olgu_siniri(self):
         yeni = ["Kuyunun ipi yepyeni.", "Ahırın kapısı mavi boyalı.", "Demirhanenin çatısı akıyor.",

@@ -33,7 +33,7 @@ _IDDIA_DURUMLARI = {"yeni", "biliniyor", "celisiyor"}
 # karakter_degisimleri'ne aittir.
 _TAHMIN = re.compile(r"\b(görünüyor\w*|gibi|sanki|düşün\w*|hisse\w*|olabilir\w*|muhtemelen|belki|"
                      r"galiba|anlaşılan|sanıyor\w*|zannet\w*|varsay\w*|beklemiyor\w*|istekli|hale geldi|"
-                     r"karşıladı|önemli görüyor\w*)\b")
+                     r"karşıladı|önemli görüyor\w*|merak\w*|tahmin\w*|hâlâ|halen)\b")
 BILINIYOR_ESIGI = 0.6      # iddianın köklerinin bu kadarı tek bir kanon metninde geçiyorsa
 YENI_OLGU_SINIRI = 3       # sahne başına kanona eklenecek en fazla yeni olgu
 VAAT_TEKRAR_ESIGI = 0.5

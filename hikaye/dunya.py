@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from .getirim import kelimeler, kucult
+
 
 @dataclass
 class Karakter:
@@ -65,6 +67,18 @@ class Dunya:
     mekanlar: dict[str, Mekan]
     olgular: list[Olgu]
     baslangic_zamani: str = "1. gün, akşam"
+
+    def adi_gecenler(self, metin: str, haric=()) -> list[str]:
+        """Metinde özel adı (adlar alanı) geçen karakterlerin id'leri; haric dışındakiler."""
+        gecenler = kelimeler(metin)
+        bulunan = []
+        for kid, k in self.karakterler.items():
+            if kid in haric:
+                continue
+            adlar = [kucult(a) for a in k.adlar if len(a) >= 3]
+            if any(w.startswith(a) for w in gecenler for a in adlar):
+                bulunan.append(kid)
+        return bulunan
 
 
 class DunyaHatasi(ValueError):

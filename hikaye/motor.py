@@ -53,16 +53,21 @@ def sahne_parcalari(metin: str) -> set[str]:
     return parcalar
 
 
-def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = frozenset()
-                    ) -> tuple[str, list[Replik], list[str], list[str]]:
+_TANITMA = re.compile(r"\b(tanıt\w*|adı|adını|adının|adıyla|adım|ismi|ismini|isminin|kendini)\b")
+
+
+def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = frozenset(),
+                    tanisilan=()) -> tuple[str, list[Replik], list[str], list[str]]:
     """Anlatım ve replik parçalarından sahne metnini kurar.
 
     - Konuşmalar metnin içinden geçtiği için modelin repliği yazıp sahneye koymayı
       unutması imkânsızlaşır; konuşanın kim olduğu da kesin bilinir.
     - Oyuncu adına yazılan replikler atılır: oyuncunun sözünü oyuncu seçer.
-    - Oyuncunun adını bilmediği karakterler görünüşleriyle etiketlenir; adı bir
-      replikte SESLİ söylendiği anda tanınmış sayılır. Anlatım bir karakteri oyuncu
-      tanımadan adıyla anarsa uyarı üretir.
+    - Oyuncunun adını bilmediği karakterler görünüşleriyle etiketlenir. Karakter
+      tanınmış sayılır: adı bir replikte söylendiğinde, anlatım onu bir tanıtma
+      sözüyle andığında ("adını Nehir olarak tanıtıyor") ya da yazar onu bu sahnede
+      tanıştı diye bildirdiğinde (tanisilan). Bunlar dışında anlatım adı erken
+      kullanırsa uyarı üretir.
     - Önceki sahneden aynen tekrarlanan parçalar atılır (onceki: sahne_parcalari()).
     - Karakter kartındaki örnek replik aynen tekrarlanmışsa uyarı üretir.
 
@@ -99,29 +104,22 @@ def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = froze
                 ad = str(konusan or "?")
                 uyarilar.append(f"replikte bilinmeyen karakter: {konusan!r}")
             satirlar.append(f'{ad}: "{metin}"')
-            taninan.extend(adi_gecenler(metin, dunya, haric=taninan))    # ad sesli söylendi
+            taninan.extend(dunya.adi_gecenler(metin, haric=taninan))    # ad sesli söylendi
         else:
             metin = str(p.get("anlatim") or "").strip()
             if not metin:
                 continue
             satirlar.append(metin)
-            for kid in adi_gecenler(metin, dunya, haric=taninan):
-                uyarilar.append(f"anlatım, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
-                                "karakterini adıyla andı")
-    return "\n".join(satirlar), replikler, uyarilar, taninan
-
-
-def adi_gecenler(metin: str, dunya: Dunya, haric=()) -> list[str]:
-    """Metinde özel adı geçen karakterler (haric dışındakiler)."""
-    gecenler = kelimeler(metin)
-    bulunan = []
-    for kid, k in dunya.karakterler.items():
-        if kid in haric:
-            continue
-        adlar = [kucult(a) for a in k.adlar if len(a) >= 3]
-        if any(w.startswith(a) for w in gecenler for a in adlar):
-            bulunan.append(kid)
-    return bulunan
+            tanitiliyor = bool(_TANITMA.search(kucult(metin)))
+            for kid in dunya.adi_gecenler(metin, haric=taninan):
+                if tanitiliyor or kid in tanisilan:
+                    taninan.append(kid)
+                else:
+                    uyarilar.append(f"anlatım, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
+                                    "karakterini adıyla andı")
+    # Yazar tanıştı dediği halde adı metinde hiç geçmeyenler de artık tanınıyor
+    taninan.extend(k for k in tanisilan if k in dunya.karakterler and k not in taninan)
+    return "\n".join(satirlar), replikler, list(dict.fromkeys(uyarilar)), taninan
 
 
 def _ornek_kopyasi_mi(metin: str, ornekler: list[str]) -> bool:
@@ -159,13 +157,16 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
         raise YanitHatasi(str(e)) from e
 
     uyarilar = []
+    tanisilan = [k for k in veri.get("tanisilan") or [] if k in dunya.karakterler]
     if veri.get("akis"):
         onceki = sahne_parcalari(onceki_metin) if onceki_metin else frozenset()
-        sahne, replikler, akis_uyarilari, taninan = akisi_birlestir(veri["akis"], dunya, taninan, onceki)
+        sahne, replikler, akis_uyarilari, taninan = akisi_birlestir(
+            veri["akis"], dunya, taninan, onceki, tanisilan)
         uyarilar.extend(akis_uyarilari)
     else:
         # Eski biçim: tek parça metin. Replikler metinden ayrı geldiği için güvenilmez.
-        sahne, replikler, taninan = str(veri.get("sahne") or "").strip(), [], list(taninan)
+        sahne, replikler = str(veri.get("sahne") or "").strip(), []
+        taninan = list(taninan) + [k for k in tanisilan if k not in taninan]
         if sahne:
             uyarilar.append("akış yerine düz sahne metni döndü")
     if not sahne:
@@ -173,7 +174,7 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
     secenekler = [str(s).strip() for s in veri.get("secenekler") or [] if str(s).strip()]
     if not secenekler:
         raise YanitHatasi("Seçenek yok.")
-    for kid in adi_gecenler(" ".join(secenekler), dunya, haric=taninan):
+    for kid in dunya.adi_gecenler(" ".join(secenekler), haric=taninan):
         uyarilar.append(f"seçenekler, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
                         "karakterini adıyla andı")
 
