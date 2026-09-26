@@ -95,6 +95,25 @@ def eylem_denetimi(eylem: str | None, durum: Durum) -> list[str]:
     return notlar
 
 
+_EDINME = re.compile(r"(?<!\w)(bul|ara|iste|al|satın|ödünç|sor)\w*")
+
+
+def secenek_esya_denetimi(secenekler: list[str], durum: Durum) -> list[str]:
+    """Oyuncuda olmayan bir eşyayı KULLANMAYI öneren seçenekler ("İple tırmanmayı dene").
+    Eşyayı bulmayı/istemeyi önerenler serbest. Yalnızca uyarı: yazara geri döner."""
+    uyarilar = []
+    for s in secenekler:
+        kucuk = kucult(s)
+        if _EDINME.search(kucuk):
+            continue
+        for eslesme in _ESYA_DESENI.finditer(kucuk):
+            ad = _esya_adi(eslesme.group(0))
+            if not any(ad[:4] in kucult(x) for x in durum.esyalar):
+                uyarilar.append(f"seçenek oyuncuda olmayan \"{ad}\" eşyasını gerektiriyor: {s!r}")
+                break
+    return uyarilar
+
+
 # ── Zaman: gece ya da akşamdan sabaha geçildiyse gün sayısı artar ──
 _GUN = re.compile(r"(\d+)\.\s*gün")
 _GECE = ("gece", "akşam", "gün batımı", "alacakaranlık", "gece yarısı")
@@ -254,14 +273,22 @@ def _konusan_bul(konusan, dunya: Dunya) -> str | None:
     ("tekine", "Nehir Hanım", "iri yapılı kadın") tolere eder."""
     if konusan in dunya.karakterler:
         return konusan
-    aranan = kucult(str(konusan or "")).strip()
+    aranan = _ascii(str(konusan or "")).strip()
     if len(aranan) < 3:
         return None
     for kid, k in dunya.karakterler.items():
-        adlar = [kid, kucult(k.ad), kucult(k.gorunen_ad)] + [kucult(a) for a in k.adlar]
+        adlar = [_ascii(a) for a in [kid, k.ad, k.gorunen_ad] + k.adlar]
         if any(aranan.startswith(a) or a.startswith(aranan) for a in adlar):
             return kid
     return None
+
+
+_TR_ASCII = str.maketrans("çğıöşüâîû", "cgiosuaiu")
+
+
+def _ascii(metin: str) -> str:
+    """Model bazen Türkçe harfsiz yazıyor ("yasli demirci"); karşılaştırma harf bağımsız olsun."""
+    return kucult(metin).translate(_TR_ASCII)
 
 
 def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
@@ -407,6 +434,7 @@ class Motor:
         cozum["secenekler"], tekrar_uyarilari = tekrar_secenekleri_ayikla(
             cozum["secenekler"], onceki_eylemler + ([eylem] if eylem else []))
         uyarilar.extend(tekrar_uyarilari)
+        uyarilar.extend(secenek_esya_denetimi(cozum["secenekler"], self.durum))
 
         no = len(self.durum.sahneler) + 1
         konusanlar = list(dict.fromkeys(r.karakter for r in cozum["replikler"]))

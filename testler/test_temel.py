@@ -379,6 +379,20 @@ class TestOyunuBulgulariTesti(unittest.TestCase):
         self.assertTrue(kart.startswith("Yaşlı demirci [oruc]"))
         self.assertIn("DUYMADI", kart)
 
+    def test_tekrar_testi_bulgulari(self):
+        from hikaye.motor import secenek_esya_denetimi
+        # "tekinsiz" Tekin değildir; "Tekin'in" Tekin'dir
+        self.assertEqual(self.dunya.adi_gecenler("Tekinsiz bir ışıltı beliriyor."), [])
+        self.assertEqual(self.dunya.adi_gecenler("Tekin'in sesi geliyor."), ["tekin"])
+        # Türkçe harfsiz yazılan konuşan da bulunur
+        metin = gecerli_yanit(akis=[{"konusan": "yasli demirci", "replik": "Gel bakalım."}])
+        cozum, _ = yanit_coz(metin, self.dunya, "demirhane")
+        self.assertEqual([r.karakter for r in cozum["replikler"]], ["oruc"])
+        # Olmayan eşyayı kullanan seçenek uyarı üretir, bulmayı öneren üretmez
+        uyarilar = secenek_esya_denetimi(["İple tırmanmayı dene", "Bir ip bulmaya çalış", "Geri dön"], self._durum())
+        self.assertEqual(len(uyarilar), 1)
+        self.assertIn("İple tırmanmayı dene", uyarilar[0])
+
     def test_acilis_kanonda_a1(self):
         self.assertIn("a1", {o.id for o in self.dunya.sabit_olgular})
         self.assertIn("a1", {o.id for o in self.dunya.ilgili_olgular(["han"])})

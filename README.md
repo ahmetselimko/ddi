@@ -28,6 +28,9 @@ eylem yazılır (klavyeden 1-4 de seçer). **Editör** düğmesi yan paneli aça
 Sayfa yenilense de oyun kaldığı yerden devam eder; sunucu kapanınca oyun biter (kaydı
 `oturumlar/` altında kalır).
 
+**↻ Yeniden yaz** son sahneyi geri alıp aynı eylemle yeniden yazdırır (olgular, vaatler,
+eşyalar da geri alınır); komut satırında `y`.
+
 Sunucu yalnızca bu bilgisayardan erişilir. `--host 0.0.0.0` ile aynı ağdaki telefondan da
 açılabilir, ama o zaman ağdaki herkes senin API anahtarınla oynayabilir.
 
@@ -62,6 +65,10 @@ Bazı sorunları modele sormak yerine kod her seferinde aynı şekilde yakalar. 
 | Örnek replik | Karakter kartındaki örnek cümle aynen kullanılırsa uyarı |
 | Konuşmayan karakter | Sahnedeki karakterler hiç konuşmadıysa uyarı |
 | Bilinmeyen id | Dünyada olmayan karakter/mekân uydurulursa uyarı; konuşan adındaki küçük yazım kaymaları düzeltilir |
+| Eylem ön denetimi | Eylemde geçen ama oyuncuda olmayan eşya (kılıç, ip, fener... Türkçe/İngilizce), daha önce elden çıkmış eşya ya da parasını aşan ödeme: yazara eylemin hemen önünde kesin not |
+| Eşya ve akçe | Oyuncunun üzerindekiler takip edilir; olmayan eşya çıkarılamaz, yetmeyen akçe ödenemez; olmayan eşyayı kullanan seçenek uyarı üretir |
+| Zaman | Gece/akşamdan sabaha geçilince gün sayısı ilerler; zaman geri gidemez |
+| Ses karışması | Bir karakter başka birinin imza sözünü (Nehir'in "evlat"ı) kullanırsa uyarı |
 
 ## Editör
 
@@ -88,6 +95,18 @@ düzeltmeler kayıtta `editor.otomatik` altında durur, editörün hata oranı b
 
 Editör her tur bir model çağrısı daha demek, yani süre yaklaşık iki katına çıkar.
 Editör geçerli yanıt veremezse oyun durmaz; o tur editörsüz devam eder.
+
+## Yazar modeli
+
+| `--yazar` / web'de "Yazar modeli" | Ne | Tur başına |
+|---|---|---|
+| `hizli` (varsayılan) | Gemini 2.5 Flash, düşünmesiz | ~0,6-0,9 sent |
+| `dusunen` | Aynı model, yazmadan önce düşünür (bütçe 1024 token) | ~1,5-2 kat |
+| `guclu` | gemini-3.8-flash | ~1,5 kat (testte ~1,1 sent) |
+
+Seçenek yalnızca yazarı etkiler; editör ve özet temel modelde kalır. Editör açıkken yazar
+**hafif** çalışır: yalnızca sahneyi ve seçenekleri yazar; mekân, zaman, sahnedeki karakterler,
+eşya/akçe değişimi ve olguları editör çıkarır.
 
 ## Rollere ayrı model
 

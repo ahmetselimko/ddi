@@ -55,7 +55,8 @@ KURALLAR:
 11. Sahneyi karakterlerin tepkisinden SONRA, oyuncunun karar vermesi gereken bir anda bitir.
 12. Seçenekleri ikinci tekil emir kipinde yaz ("... sor", "... git"). Birbirinden farklı yönlere açılsınlar;
     oyuncunun zaten yaptığı ya da sorduğu şeyi tekrar önerme. Oyuncuya bir şey söyleten seçenekte ne
-    söyleyeceği seçeneğin içinde açıkça yazsın ve yalnızca oyuncunun bildiklerinden oluşsun; içeriği belirsiz "... açıkla", "... anlat" seçenekleri yazma. "... gözlemle" gibi edilgen seçenekler yazma.
+    söyleyeceği seçeneğin içinde açıkça yazsın ve yalnızca oyuncunun bildiklerinden oluşsun. Seçenekler oyuncunun
+    ÜZERİNDEKİLERLE yapılabilir olsun (ipi yoksa "iple tırman" önerme; "ip bulmaya çalış" önerilebilir). İçeriği belirsiz "... açıkla", "... anlat" seçenekleri yazma. "... gözlemle" gibi edilgen seçenekler yazma.
 13. Oyuncu yalnızca ÜZERİNDEKİLERİ kullanabilir ve üzerindekinden fazla akçe veremez. Üzerinde olmayan bir eşyayı (ör. silah) kullanmaya
     çalışırsa eli boş kalır: bunu hikâyede göster, o eşya ortaya çıkmaz. Dünya kurallarına aykırı bir şey
     yapmaya çalışırsa bunun neden olmadığını göster. Büyük olayların sonucu olur: başkaları duyar, gelir,

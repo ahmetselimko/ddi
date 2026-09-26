@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from . import istem
 from .dunya import Dunya
 from .durum import Durum, Sahne
-from .getirim import BM25, kelimeler, kucult
+from .getirim import BM25
 
 STRATEJILER = ("tam", "son", "ozet", "kanon", "ozet+kanon")
 
@@ -92,11 +92,7 @@ def _ilgili_karakterler(dunya: Dunya, son: list[Sahne], eylem: str | None) -> li
     """Son sahnede bulunan ya da son sahnede / oyuncu eyleminde adı geçen karakterler."""
     secilen = [k for s in son for k in s.karakterler]
     metin = " ".join([eylem or ""] + [s.metin for s in son])
-    gecenler = kelimeler(metin)
-    for k in dunya.karakterler.values():
-        adlar = [kucult(a) for a in (k.adlar or [k.ad])]
-        if any(w.startswith(a) for w in gecenler for a in adlar):
-            secilen.append(k.id)
+    secilen += dunya.adi_gecenler(metin)
     return list(dict.fromkeys(secilen))   # sırayı koruyarak tekrarları at
 
 

@@ -125,14 +125,15 @@ class Dunya:
         return [o for o in self.olgular + [self.acilis] if idler & set(o.ilgili)]
 
     def adi_gecenler(self, metin: str, haric=()) -> list[str]:
-        """Metinde özel adı (adlar alanı) geçen karakterlerin id'leri; haric dışındakiler."""
-        gecenler = kelimeler(metin)
+        """Metinde özel adı (adlar alanı) geçen karakterlerin id'leri; haric dışındakiler.
+        Tam kelime eşleşmesi: Türkçede özel ada gelen ek kesmeyle ayrılır ("Tekin'in") ve
+        kelimeler() onu atar; önek eşleşmesi ise "tekinsiz"i Tekin sanıyordu."""
+        gecenler = set(kelimeler(metin))
         bulunan = []
         for kid, k in self.karakterler.items():
             if kid in haric:
                 continue
-            adlar = [kucult(a) for a in k.adlar if len(a) >= 3]
-            if any(w.startswith(a) for w in gecenler for a in adlar):
+            if any(kucult(a) in gecenler for a in k.adlar if len(a) >= 3):
                 bulunan.append(kid)
         return bulunan
 
