@@ -24,18 +24,28 @@ class Karakter:
     adlar: list[str] = field(default_factory=list)
     ornek_replikler: list[str] = field(default_factory=list)
     gorunen_ad: str = ""   # oyuncu tanışmadan önce konuşma etiketi ("İri yapılı kadın")
+    yer: str = ""          # genelde bulunduğu mekânın id'si; oraya gidilince kartı yazara gider
+    imza: list[str] = field(default_factory=list)   # yalnızca bu karaktere ait sözler ("evlat")
 
     def __post_init__(self):
         self.gorunen_ad = self.gorunen_ad or self.ad
 
-    def kart(self) -> str:
-        """İstemde kullanılan karakter kartı."""
+    def kart(self, taninan: bool = True) -> str:
+        """İstemde kullanılan karakter kartı. taninan=False: oyuncu adını henüz bilmiyor;
+        yazar onu görünüşüyle ansın diye başlıkta görünen ad öne çıkar."""
+        if taninan:
+            baslik = f"{self.ad} [{self.id}]"
+        else:
+            baslik = (f"{self.gorunen_ad} [{self.id}] — gerçek adı {self.ad}; oyuncu bu adı henüz "
+                      "DUYMADI: anlatımda ve seçeneklerde kullanma")
         satirlar = [
-            f"{self.ad} [{self.id}]",
+            baslik,
             f"  Kim: {self.tanim}",
             f"  Kişilik: {self.kisilik}",
             f"  Konuşma: {self.konusma}",
         ]
+        if self.imza:
+            satirlar.append(f"  İmza sözleri (yalnızca bu karaktere ait, başkası kullanmaz): {', '.join(self.imza)}")
         if self.ornek_replikler:
             satirlar.append("  Üslup örnekleri (aynen kullanma, yalnızca sesi yakala): "
                             + " / ".join(f'"{r}"' for r in self.ornek_replikler))
@@ -47,6 +57,9 @@ class Mekan:
     id: str
     ad: str
     tanim: str
+    # Metinde anılma biçimleri: "kule*" önekle eşleşir (kuleye, kulenin); yıldızsız
+    # olanlar kelimenin tam kendisiyle ("han" → "han", "Han'a"; ama "hanım" değil)
+    adlar: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -74,9 +87,42 @@ class Dunya:
     oyuncu_akce: int = 0
 
     @property
+    def acilis(self) -> Olgu:
+        """Açılış metni de kanondur ("ahırda tek bir at bile yok"); a1 id'siyle çelişki
+        denetiminde gösterilebilsin diye olgu olarak da sunulur."""
+        return Olgu(id="a1", metin=self.giris, ilgili=[self.baslangic_mekan])
+
+    @property
     def sabit_olgular(self) -> list[Olgu]:
-        """Çelişki denetiminin karşılaştırdığı değişmez kanon: olgular + kurallar."""
-        return self.olgular + self.kurallar
+        """Çelişki denetiminin karşılaştırdığı değişmez kanon: olgular + kurallar + açılış."""
+        return self.olgular + self.kurallar + [self.acilis]
+
+    def adi_gecen_mekanlar(self, metin: str) -> list[str]:
+        """Metinde anılan mekânların id'leri (Mekan.adlar kurallarıyla)."""
+        gecenler = kelimeler(metin)
+        bulunan = []
+        for mid, m in self.mekanlar.items():
+            for ad in m.adlar:
+                ad = kucult(ad)
+                if ad.endswith("*"):
+                    eslesti = any(w.startswith(ad[:-1]) for w in gecenler)
+                elif " " in ad:
+                    eslesti = ad in " ".join(gecenler)
+                else:
+                    eslesti = ad in gecenler
+                if eslesti:
+                    bulunan.append(mid)
+                    break
+        return bulunan
+
+    def sakinler(self, mekanlar) -> list[str]:
+        """Bu mekânlarda genelde bulunan karakterler (Karakter.yer)."""
+        return [kid for kid, k in self.karakterler.items() if k.yer and k.yer in mekanlar]
+
+    def ilgili_olgular(self, idler) -> list[Olgu]:
+        """ilgili alanı verilen karakter/mekân id'lerinden birini içeren sabit olgular."""
+        idler = set(idler)
+        return [o for o in self.olgular + [self.acilis] if idler & set(o.ilgili)]
 
     def adi_gecenler(self, metin: str, haric=()) -> list[str]:
         """Metinde özel adı (adlar alanı) geçen karakterlerin id'leri; haric dışındakiler."""
@@ -121,6 +167,10 @@ def _dogrula(dunya: Dunya) -> None:
         raise DunyaHatasi(f"Karakter ve mekân aynı id'yi kullanıyor: {', '.join(sorted(ortak))}")
     if dunya.baslangic_mekan not in dunya.mekanlar:
         raise DunyaHatasi(f"Başlangıç mekânı tanımlı değil: {dunya.baslangic_mekan}")
+
+    for k in dunya.karakterler.values():
+        if k.yer and k.yer not in dunya.mekanlar:
+            raise DunyaHatasi(f"{k.id} karakterinin yeri tanımlı bir mekân değil: {k.yer}")
 
     bilinen = set(dunya.karakterler) | set(dunya.mekanlar)
     gorulen: set[str] = set()

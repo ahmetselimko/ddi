@@ -25,6 +25,100 @@ class YanitHatasi(ValueError):
     pass
 
 
+# ── Eylem ön denetimi: model yazmadan ÖNCE, oyuncunun eylemindeki imkânsızlıklar ──
+# Testte model, oyuncunun "kılıcımı çekiyorum" demesiyle olmayan bir kılıcı hikâyeye
+# soktu. Bu artık modelin takdirine bırakılmaz: eylemde üzerinde olmayan bir eşya
+# ya da elinde olmayan kadar akçe geçiyorsa yazara kesin bir not gider.
+_ESYA_KALIPLARI = {           # kök kalıbı → eşyanın adı (Türkçe ekler ve İngilizce karşılıklar)
+    r"kılı[çc]\w*": "kılıç", r"bıça[kğ]\w*": "bıçak", r"hançer\w*": "hançer", r"balta\w*": "balta",
+    r"mızra[kğ]\w*": "mızrak", r"tabanca\w*": "tabanca", r"tüfe[kğ]\w*": "tüfek", r"silah\w*": "silah",
+    r"kalkan\w*": "kalkan", r"halat\w*": "halat", r"ip|ipi|ipim\w*|iple|ipe": "ip", r"meşale\w*": "meşale",
+    r"çakma[kğ]\w*": "çakmak", r"kibrit\w*": "kibrit", r"fener\w*": "fener", r"anahtar\w*": "anahtar",
+    r"swords?": "kılıç", r"knife|knives": "bıçak", r"daggers?": "hançer", r"guns?|pistols?": "silah",
+    r"ropes?": "ip", r"torch(es)?": "meşale", r"keys?": "anahtar",
+}
+_ESYA_DESENI = re.compile(r"(?<!\w)(" + "|".join(f"(?:{k})" for k in _ESYA_KALIPLARI) + r")(?!\w)")
+_SAYILAR = {"bir": 1, "iki": 2, "üç": 3, "dört": 4, "beş": 5, "altı": 6, "yedi": 7, "sekiz": 8,
+            "dokuz": 9, "on": 10, "yirmi": 20, "otuz": 30, "kırk": 40, "elli": 50, "altmış": 60,
+            "yetmiş": 70, "seksen": 80, "doksan": 90, "yüz": 100, "bin": 1000}
+_VERME = re.compile(r"(?<!\w)(ver|öde|teklif|uzat|bırak|give|pay|offer)\w*")
+
+
+def _esya_adi(sozcuk: str) -> str:
+    for kalip, ad in _ESYA_KALIPLARI.items():
+        if re.fullmatch(kalip, sozcuk):
+            return ad
+    return sozcuk
+
+
+def _akce_miktari(metin: str) -> int | None:
+    """"50 akçe", "on beş akçe" gibi ifadelerdeki en büyük miktar."""
+    kelimeler_ = kucult(metin).replace("'", " ").split()
+    en_buyuk = None
+    for i, k in enumerate(kelimeler_):
+        if not k.startswith("akçe") and not k.startswith("coin"):
+            continue
+        toplam, j = 0, i - 1
+        while j >= 0 and (kelimeler_[j].isdigit() or kelimeler_[j] in _SAYILAR):
+            toplam += int(kelimeler_[j]) if kelimeler_[j].isdigit() else _SAYILAR[kelimeler_[j]]
+            j -= 1
+        if toplam:
+            en_buyuk = max(en_buyuk or 0, toplam)
+    return en_buyuk
+
+
+def eylem_denetimi(eylem: str | None, durum: Durum) -> list[str]:
+    """Oyuncunun eylemi, üzerinde olmayan bir eşyayı ya da parasını aşan bir ödemeyi
+    içeriyor mu? Bulunanlar yazara kesin not olarak gider."""
+    if not eylem:
+        return []
+    notlar, kucuk = [], kucult(eylem)
+    uzerindekiler = ", ".join(durum.esyalar) or "hiçbir eşya"
+    gorulen = set()
+    for eslesme in _ESYA_DESENI.finditer(kucuk):
+        ad = _esya_adi(eslesme.group(0))
+        if ad in gorulen or any(ad[:4] in kucult(x) for x in durum.esyalar):
+            continue
+        gorulen.add(ad)
+        notlar.append(f"Oyuncunun üzerinde \"{ad}\" YOK (üzerindekiler: {uzerindekiler}). Eylem onu kullanmayı "
+                      "gerektiriyorsa (çekmek, vurmak, yakmak, vermek) oyuncunun eli boş kalır ve o eşya hikâyeye "
+                      "girmez; ama çevreden almaya, istemeye ya da satın almaya çalışabilir.")
+    # Daha önce elinden çıkan eşyalar (dondurma çubuğu, pusula...) sözcük listesinde olmasa da yakalanır
+    for esya in durum.elden_cikanlar:
+        if esya not in gorulen and ortusme(esya, eylem) >= 0.5 and not any(ortusme(esya, x) >= 0.5 for x in durum.esyalar):
+            gorulen.add(esya)
+            notlar.append(f"\"{esya}\" artık oyuncuda DEĞİL (daha önce elinden çıktı). Onu kullanamaz.")
+    miktar = _akce_miktari(eylem)
+    if miktar and miktar > durum.akce and _VERME.search(kucuk):
+        notlar.append(f"Oyuncunun yalnızca {durum.akce} akçesi var; {miktar} akçe veremez. Teklif ederse "
+                      "elindekinin yetmediği anlaşılır.")
+    return notlar
+
+
+# ── Zaman: gece ya da akşamdan sabaha geçildiyse gün sayısı artar ──
+_GUN = re.compile(r"(\d+)\.\s*gün")
+_GECE = ("gece", "akşam", "gün batımı", "alacakaranlık", "gece yarısı")
+_SABAH = ("sabah", "şafak", "gün doğumu", "öğle", "kuşluk")
+
+
+def gun_duzelt(onceki: str, yeni: str) -> tuple[str, str | None]:
+    """Model gün sayısını ilerletmeyi unutuyor ("dün gece" diyor ama hâlâ 1. gün).
+    Gece/akşamdan sabaha geçildiyse ve gün aynı kaldıysa bir artırır; zaman geri
+    gidemez. (düzeltilmiş zaman, uyarı ya da None)"""
+    e, y = _GUN.search(onceki or ""), _GUN.search(yeni or "")
+    if not e or not y:
+        return yeni, None
+    eski_gun, yeni_gun = int(e.group(1)), int(y.group(1))
+    if yeni_gun < eski_gun:
+        return onceki, f"zaman geri gidemez: {yeni!r} yerine {onceki!r} korundu"
+    gece_idi = any(s in kucult(onceki) for s in _GECE)
+    sabah_oldu = any(s in kucult(yeni) for s in _SABAH)
+    if yeni_gun == eski_gun and gece_idi and sabah_oldu:
+        duzeltilmis = _GUN.sub(f"{eski_gun + 1}. gün", yeni, count=1)
+        return duzeltilmis, f"gün sayısı ilerletildi: {yeni!r} → {duzeltilmis!r}"
+    return yeni, None
+
+
 def tekrar_secenekleri_ayikla(secenekler: list[str], eylemler: list[str]) -> tuple[list[str], list[str]]:
     """Oyuncunun zaten yaptığı şeyi yeniden öneren seçenekleri atar. Geriye ikiden az
     seçenek kalacaksa hepsini bırakır (oyuncu serbest eylem de yazabilir) ama yine uyarır."""
@@ -100,6 +194,7 @@ def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = froze
                 k = dunya.karakterler[bulunan]
                 if _ornek_kopyasi_mi(metin, k.ornek_replikler):
                     uyarilar.append(f"örnek replik aynen kullanıldı: {bulunan}")
+                uyarilar.extend(_imza_karismasi(metin, bulunan, dunya))
                 ad = k.ad if bulunan in taninan else k.gorunen_ad
                 replikler.append(Replik(bulunan, metin))
             else:
@@ -112,14 +207,37 @@ def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = froze
             if not metin:
                 continue
             satirlar.append(metin)
-            tanitiliyor = bool(_TANITMA.search(kucult(metin)))
-            for kid in dunya.adi_gecenler(metin, haric=taninan):
-                if tanitiliyor or kid in tanisilan:
-                    taninan.append(kid)
-                else:
-                    uyarilar.append(f"anlatım, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
-                                    "karakterini adıyla andı")
+            # Tanıtma sözü adla AYNI cümlede olmalı: "Yusuf'un adını görüyorsun" aynı
+            # paragraftaki Selvi'yi tanıtmış saymaz
+            for cumle in _CUMLE_SONU.split(metin):
+                tanitiliyor = bool(_TANITMA.search(kucult(cumle)))
+                for kid in dunya.adi_gecenler(cumle, haric=taninan):
+                    if tanitiliyor or kid in tanisilan:
+                        taninan.append(kid)
+                    else:
+                        uyarilar.append(f"anlatım, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
+                                        "karakterini adıyla andı")
     return "\n".join(satirlar), replikler, list(dict.fromkeys(uyarilar)), taninan
+
+
+_CUMLE_SONU = re.compile(r"(?<=[.!?…])\s+")
+
+
+def _imza_karismasi(metin: str, konusan: str, dunya: Dunya) -> list[str]:
+    """Konuşan, başka bir karakterin imza sözünü ("evlat") kullandı mı? Karakter sesinin
+    kodla ölçülebilen bir göstergesi; model bunu sık yapıyor."""
+    kendi = {kucult(s) for s in dunya.karakterler[konusan].imza}
+    kucuk = kucult(metin)
+    uyarilar = []
+    for kid, k in dunya.karakterler.items():
+        if kid == konusan:
+            continue
+        for soz in k.imza:
+            s = kucult(soz)
+            if s not in kendi and re.search(rf"(?<!\w){re.escape(s)}(?!\w)", kucuk):
+                uyarilar.append(f"ses karışması: {dunya.karakterler[konusan].ad}, "
+                                f"{k.ad} karakterinin imza sözü \"{soz}\"u kullandı")
+    return uyarilar
 
 
 def _ornek_kopyasi_mi(metin: str, ornekler: list[str]) -> bool:
@@ -263,10 +381,12 @@ class Motor:
         baglam = self.bellek.baglam(self.dunya, self.durum, eylem)
         ek = self.editor.yazara_bolumler(self.dunya, self.durum) if self.editor else []
         onceki_eylemler = [s.eylem for s in self.durum.sahneler if s.eylem]
+        eylem_notlari = eylem_denetimi(eylem, self.durum)
         sistem = istem.sistem_istemi(self.dunya, hafif=hafif)
         kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek, zaman=self.durum.zaman,
                                        taninan=self.durum.taninan, eylemler=onceki_eylemler,
-                                       esyalar=self.durum.esyalar, akce=self.durum.akce)
+                                       esyalar=self.durum.esyalar, akce=self.durum.akce,
+                                       eylem_notlari=eylem_notlari)
 
         yanitlar, hatalar = [], []
         istek = kullanici
@@ -322,6 +442,10 @@ class Motor:
         else:
             for m, ilgili in cozum["yeni_olgular"]:
                 self.durum.olgu_ekle(m, ilgili, no)
+        sahne.zaman, zaman_uyarisi = gun_duzelt(self.durum.zaman, sahne.zaman)
+        if zaman_uyarisi:
+            uyarilar.append(zaman_uyarisi)
+        uyarilar.extend(f"eylem denetimi: {n}" for n in eylem_notlari)
         self.durum.mekan, self.durum.zaman = sahne.mekan, sahne.zaman
         uyarilar.extend(envanter_uygula(self.durum, envanter))
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
@@ -344,6 +468,7 @@ class Motor:
                 yazar_olgulari=[m for m, _ in cozum["yeni_olgular"]],
                 editor=self.son_bulgular,
                 editor_basarisiz=bool(self.editor) and self.son_bulgular is None,
+                editor_hatalari=self.editor.son_hatalar if self.editor and self.son_bulgular is None else [],
                 acik_vaatler=[v.id for v in self.durum.acik_vaatler],
                 taninan=self.durum.taninan,
                 envanter=cozum["envanter"],

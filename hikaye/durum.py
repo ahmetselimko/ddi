@@ -81,6 +81,7 @@ class Durum:
     taninan: list[str] = field(default_factory=list)   # oyuncunun adını öğrendiği karakterler
     esyalar: list[str] = field(default_factory=list)   # oyuncunun üzerindekiler
     akce: int = 0
+    elden_cikanlar: list[str] = field(default_factory=list)   # verilen/kaybedilen eşyalar
     # Editör açıkken dolanlar
     vaatler: list[Vaat] = field(default_factory=list)
     celiskiler: list[Celiski] = field(default_factory=list)
@@ -112,6 +113,18 @@ def _ayni_esya(a: str, b: str) -> bool:
     return kucult(a).strip() == kucult(b).strip() or (ortusme(a, b) >= 0.6 and ortusme(b, a) >= 0.6)
 
 
+def _en_benzeyen(esyalar: list[str], aranan: str) -> str | None:
+    """Aranan eşyaya en çok benzeyen. Tam eşleşme yoksa kök örtüşmesine bakar; iki
+    "defter" varken "kalın defter" doğru olanı bulsun diye puanla seçer."""
+    for x in esyalar:
+        if kucult(x).strip() == kucult(aranan).strip():
+            return x
+    # Eşitlikte en son eklenen: "defteri geri verdim" büyük ihtimalle yeni alınan defterdir
+    puanli = [(ortusme(aranan, x) + ortusme(x, aranan), i, x) for i, x in enumerate(esyalar)
+              if ortusme(aranan, x) >= 0.5 or ortusme(x, aranan) >= 0.5]
+    return max(puanli)[2] if puanli else None
+
+
 def envanter_oku(ham) -> dict:
     """Model çıktısındaki {"eklenen", "cikan", "akce"} alanını güvenli biçimde okur."""
     ham = ham if isinstance(ham, dict) else {}
@@ -128,14 +141,18 @@ def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:
     yetmeyen akçenin ödenmesi uygulanmaz, uyarı olarak döner."""
     uyarilar = []
     for esya in envanter["cikan"]:
-        eslesen = next((x for x in durum.esyalar if _ayni_esya(x, esya)), None)
+        eslesen = _en_benzeyen(durum.esyalar, esya)
         if eslesen:
             durum.esyalar.remove(eslesen)
+            durum.elden_cikanlar.append(eslesen)
         else:
             uyarilar.append(f"oyuncunun üzerinde olmayan bir eşya kullanıldı ya da elden çıktı: {esya!r}")
     for esya in envanter["eklenen"]:
         if not any(_ayni_esya(x, esya) for x in durum.esyalar):
             durum.esyalar.append(esya)
+            geri_gelen = _en_benzeyen(durum.elden_cikanlar, esya)
+            if geri_gelen:                              # ör. verilen pusula geri alındı
+                durum.elden_cikanlar.remove(geri_gelen)
     if envanter["akce"]:
         yeni = durum.akce + envanter["akce"]
         if yeni < 0:

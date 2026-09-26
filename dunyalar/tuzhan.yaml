@@ -28,6 +28,7 @@ kurallar:
   - Bu dünyada ateşli silah, barut ve tabanca yoktur. Silahlar bıçak, kılıç, yay ve sopadır.
   - Tuzhan küçük bir kasabadır; bağırış, kavga, yangın gibi büyük olayları herkes duyar ve buna tepki verir.
   - Doğaüstü güçler herkesin bildiği bir şey değildir; varsa bile gizemdir ve kasabalılar ondan korkar.
+  - Modern kavramlar yoktur (polis, güvenlik görevlisi, devlet dairesi, saat, telefon); kasabada düzeni bekçi sağlar.
 
 # adlar: metinde bu karakteri gösteren ÖZEL adlar. "yabancı", "çocuk" gibi
 #        sıradan kelimeler yazma; her geçtikleri yerde bu karakter sanılır.
@@ -36,18 +37,23 @@ kurallar:
 mekanlar:
   - id: han
     ad: Tuzhan Kervansarayı
+    adlar: [kervansaray*, han, hana, hanın, handa, handan, hanı, hanına]
     tanim: Kasabanın ortasındaki taş kervansaray. Avlu, ahır, mutfak ve üst katta on iki oda.
   - id: demirhane
-    ad: Oruç'un Demirhanesi
+    ad: Demirhane
+    adlar: [demirhane*]
     tanim: Hanın arkasında, kömür kokulu dar bir atölye. Duvarlarda nal ve zincir asılı.
   - id: katiplik
     ad: Kâtiplik
+    adlar: [kâtiplik*, katiplik*]
     tanim: Kasabanın kayıtlarının tutulduğu tek odalı kerpiç yapı. Raflar defter dolu.
   - id: tuz_golu
     ad: Kuru Tuz Gölü
+    adlar: [göl, gölü*, göle, gölde, gölden, gölün*, düzlüğ*]
     tanim: Kasabanın doğusunda, ufka kadar uzanan beyaz, çatlak tuz düzlüğü.
   - id: kule
     ad: Yıkık Gözetleme Kulesi
+    adlar: [kule*]
     tanim: Gölün kıyısındaki eski taş kule.
 
 karakterler:
@@ -55,6 +61,8 @@ karakterler:
     ad: Nehir Hanım
     adlar: [nehir]
     gorunen_ad: İri yapılı kadın
+    yer: han
+    imza: [evlat]
     tanim: Hanın sahibi, elli yaşlarında, iri yapılı bir kadın.
     kisilik: Sert ve şüpheci ama misafirini korur. Kasabanın dedikodusunu bilir, kolay paylaşmaz.
     konusma: >-
@@ -68,6 +76,7 @@ karakterler:
     ad: Kâtip Selvi
     adlar: [selvi]
     gorunen_ad: Genç kâtip
+    yer: katiplik
     tanim: Kasabanın resmî kâtibi, yirmili yaşlarında, parmakları mürekkep lekeli bir genç kadın.
     kisilik: Meraklı, titiz, kuralcı. Kayıp kervanı ciddiye alan tek kişi.
     konusma: >-
@@ -81,11 +90,12 @@ karakterler:
     ad: Demirci Oruç
     adlar: [oruç]
     gorunen_ad: Yaşlı demirci
+    yer: demirhane
     tanim: Altmışlarında, kolları yanık izleriyle dolu, yavaş hareket eden bir demirci.
     kisilik: Az konuşur, çok dinler. Kimseye borçlu kalmaz. Tuz gölünden korkar ama bunu saklar.
     konusma: >-
-      Çok kısa cevaplar verir, sık sık atasözü kullanır. Kimseye adıyla hitap
-      etmez.
+      Çok kısa cevaplar verir, sık sık atasözü kullanır. Kimseye hitap etmez:
+      ne adıyla ne de "evlat", "yolcu" gibi sözlerle.
     ornek_replikler:
       - "Demir tavında dövülür."
       - "Sorma. Bilmediğin iyi."
@@ -94,6 +104,8 @@ karakterler:
     ad: Tekin
     adlar: [tekin]
     gorunen_ad: Yalınayak çocuk
+    yer: demirhane
+    imza: [abi, abla]
     tanim: Oruç'un on yaşındaki yeğeni. Çıplak ayaklı, her yere giren bir çocuk.
     kisilik: Cesur, lafı bitmeyen, sır tutamayan. Mavi ışıkları gördüğüne yemin eder.
     konusma: >-
@@ -106,6 +118,8 @@ karakterler:
   - id: yabanci
     ad: Mavi Pelerinli Yabancı
     adlar: []            # gerçek adı kimse bilmiyor; görünüşüyle anılır
+    yer: han
+    imza: [sevgili dostum]
     tanim: İki gün önce kasabaya gelen, yüzünü pelerininin gölgesinde tutan biri.
     kisilik: Sakin, alaycı, her şeyi bildiğini ima eder. Asıl amacını saklar.
     konusma: Sorulara soruyla cevap verir. Nazik ama mesafeli; "sevgili dostum" der.

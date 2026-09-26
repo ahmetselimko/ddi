@@ -34,6 +34,9 @@ class Baglam:
     son_sahneler: list[str]
     olgu_idleri: list[str] = field(default_factory=list)
     karakter_idleri: list[str] = field(default_factory=list)
+    # Bulunulan/gidilen mekânla ve ilgili karakterlerle bağlı kesin olgular. Kelime
+    # eşleşmesine bırakılmaz (Türkçe kısa köklerde BM25 kaçırabiliyor: "kuleye" ≠ "kulenin").
+    odak_olgular: list[str] = field(default_factory=list)
 
 
 class Bellek:
@@ -48,20 +51,30 @@ class Bellek:
 
     def baglam(self, dunya: Dunya, durum: Durum, eylem: str | None) -> Baglam:
         son = durum.sahneler[-self.son_n:] if self.son_n else list(durum.sahneler)
-        karakter_idleri = _ilgili_karakterler(dunya, son[-1:], eylem)
+        # Bulunulan yer ve oyuncunun eyleminde gitmek istediği yerler
+        mekanlar = list(dict.fromkeys([durum.mekan] + dunya.adi_gecen_mekanlar(eylem or "")))
+        # Sahnedekiler, adı geçenler ve bu yerlerde genelde bulunanlar: demirhaneye
+        # gidilince demircinin kartı hazır olsun (yoksa model onu Nehir'in sesiyle konuşturuyor)
+        karakter_idleri = list(dict.fromkeys(_ilgili_karakterler(dunya, son[-1:], eylem)
+                                             + dunya.sakinler(mekanlar)))
+        odak = dunya.ilgili_olgular(mekanlar + karakter_idleri)
+        odak_idleri = {o.id for o in odak}
 
         olgular, olgu_idleri = [], []
         if self.kanon_acik:
             sorgu = " ".join([eylem or dunya.giris] + [s.metin for s in son[-1:]])
-            olgular, olgu_idleri = _olgu_getir(dunya, durum, sorgu, self.olgu_k)
+            getirilen = _olgu_getir(dunya, durum, sorgu, self.olgu_k)
+            secilen = [(m, i) for m, i in zip(*getirilen) if i not in odak_idleri]
+            olgular, olgu_idleri = [m for m, _ in secilen], [i for _, i in secilen]
 
         return Baglam(
             ozet=durum.ozet if self.ozet_acik else "",
             olgular=olgular,
-            karakter_kartlari=[dunya.karakterler[k].kart() for k in karakter_idleri],
+            karakter_kartlari=[dunya.karakterler[k].kart(taninan=k in durum.taninan) for k in karakter_idleri],
             son_sahneler=[istem.sahne_metni(s, dunya) for s in son],
             olgu_idleri=olgu_idleri,
             karakter_idleri=karakter_idleri,
+            odak_olgular=[f"[{o.id}] {o.metin}" for o in odak],
         )
 
     def sahne_sonrasi(self, dunya: Dunya, durum: Durum, llm):

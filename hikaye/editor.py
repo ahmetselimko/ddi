@@ -59,7 +59,7 @@ def _kanon_metinleri(dunya: Dunya, durum: Durum) -> list[tuple[str | None, str]]
     metinler = [(o.id, o.metin) for o in dunya.sabit_olgular] + [(o.id, o.metin) for o in durum.olgular]
     metinler += [(None, f"{m.ad} {m.tanim}") for m in dunya.mekanlar.values()]
     metinler += [(None, f"{k.ad} {k.tanim}") for k in dunya.karakterler.values()]
-    metinler += [(None, dunya.oyuncu), (None, dunya.giris)]
+    metinler.append((None, dunya.oyuncu))          # açılış metni sabit_olgular'da (a1)
     return metinler
 
 
@@ -195,6 +195,7 @@ class Editor:
         if ilkeler is None:
             ilkeler = ilkeleri_yukle() if self.zanaat_acik else []
         self.ilkeler = ilkeler
+        self.son_hatalar: list[str] = []
 
     def denetle(self, dunya: Dunya, durum: Durum, llm, deneme: int = 2):
         """Son sahneyi denetler ve durumu günceller. (bulgular, yanıtlar) döndürür;
@@ -203,6 +204,7 @@ class Editor:
         sistem, kullanici = istem.editor_istemi(dunya, durum, sahne, self.ilkeler, self.zanaat_acik,
                                                 oyun_olgulari=_ilgili_oyun_olgulari(durum, sahne.metin))
         yanitlar, istek = [], kullanici
+        self.son_hatalar = []                       # başarısızlıkta nedeni kayda geçsin
         for _ in range(deneme):
             yanit = llm.uret(sistem, istek, sicaklik=0.2)
             yanitlar.append(yanit)
@@ -210,6 +212,7 @@ class Editor:
                 bulgular = editor_yanit_coz(yanit.metin, dunya, durum)
                 break
             except EditorHatasi as e:
+                self.son_hatalar.append(f"{e} | yanıtın başı: {yanit.metin[:200]!r}")
                 istek = f"{kullanici}\n\nÖnceki yanıtın geçersizdi ({e}). Yalnızca istenen JSON'u döndür."
         else:
             return None, yanitlar

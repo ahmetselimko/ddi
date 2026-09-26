@@ -309,6 +309,81 @@ class IstemTesti(unittest.TestCase):
         self.assertLess(metin.index("[EDİTÖR NOTU]"), metin.index("[OYUNCUNUN EYLEMİ]"))
 
 
+class TestOyunuBulgulariTesti(unittest.TestCase):
+    """24 turluk test oyununda görülen sorunların kod düzeltmeleri."""
+
+    def setUp(self):
+        self.dunya = dunya_yukle(DUNYA_YOLU)
+
+    def _durum(self, **kw):
+        from hikaye.durum import Durum
+        return Durum(mekan="han", esyalar=["pusula", "boş harita defteri"], akce=15, **kw)
+
+    def test_olmayan_esya_yakalanir_turkce_ve_ingilizce(self):
+        from hikaye.motor import eylem_denetimi
+        durum = self._durum()
+        self.assertTrue(any('"kılıç" YOK' in n for n in eylem_denetimi("Kılıcımı çekip saldırıyorum", durum)))
+        self.assertTrue(any('"kılıç" YOK' in n for n in eylem_denetimi("I draw my sword", durum)))
+        self.assertTrue(any('"ip" YOK' in n for n in eylem_denetimi("İple kuleye tırmanıyorum", durum)))
+        self.assertEqual(eylem_denetimi("Pusulama bakıyorum", durum), [])
+        self.assertEqual(eylem_denetimi("Bir ipucu arıyorum", durum), [])          # "ipucu" ip değil
+
+    def test_elden_cikan_esya_ve_yetmeyen_akce(self):
+        from hikaye.motor import eylem_denetimi
+        durum = self._durum(elden_cikanlar=["dondurma çubuğu"])
+        notlar = eylem_denetimi("Dondurma çubuğumu yiyorum", durum)
+        self.assertTrue(any("artık oyuncuda DEĞİL" in n for n in notlar))
+        self.assertTrue(any("15 akçesi var; 50" in n for n in eylem_denetimi("Ona 50 akçe veriyorum", durum)))
+        self.assertTrue(any("15 akçesi var; 20" in n for n in eylem_denetimi("Yirmi akçe teklif et", durum)))
+        self.assertEqual(eylem_denetimi("On beş akçe veriyorum", durum), [])     # tam yetiyor
+
+    def test_gun_sayisi_ilerler_ve_geri_gitmez(self):
+        from hikaye.motor import gun_duzelt
+        self.assertEqual(gun_duzelt("1. gün, gece", "1. gün, sabah")[0], "2. gün, sabah")
+        self.assertEqual(gun_duzelt("1. gün, gün batımı", "1. gün, gece"), ("1. gün, gece", None))
+        self.assertEqual(gun_duzelt("3. gün, öğle", "2. gün, akşam")[0], "3. gün, öğle")
+
+    def test_imza_karismasi(self):
+        metin = gecerli_yanit(akis=[{"konusan": "oruc", "replik": "Kimsin sen evlat?"},
+                                    {"konusan": "nehir", "replik": "Otur, evlat."}])
+        _, uyarilar = yanit_coz(metin, self.dunya, "demirhane")
+        karisma = [u for u in uyarilar if "ses karışması" in u]
+        self.assertEqual(len(karisma), 1)
+        self.assertIn("Demirci Oruç", karisma[0])
+
+    def test_tanitma_sozu_ayni_cumlede_olmali(self):
+        metin = gecerli_yanit(akis=[{"anlatim": "Kâtip Selvi sana koşuyor. Defterde Yusuf'un adını görüyorsun."},
+                                    {"konusan": "nehir", "replik": "Otur."}])
+        cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
+        self.assertNotIn("selvi", cozum["taninan"])
+        self.assertTrue(any("Kâtip Selvi" in u for u in uyarilar))
+
+    def test_iki_defterden_dogrusu_cikar(self):
+        from hikaye.durum import envanter_uygula
+        durum = self._durum()
+        durum.esyalar.append("en kalın defterlerden biri")
+        envanter_uygula(durum, {"eklenen": [], "cikan": ["kalın defter"], "akce": 0})
+        self.assertEqual(durum.esyalar, ["pusula", "boş harita defteri"])
+        self.assertEqual(durum.elden_cikanlar, ["en kalın defterlerden biri"])
+
+    def test_mekana_gidince_olgular_ve_sakinler_gelir(self):
+        motor = Motor(self.dunya, SahteLLM(self.dunya), Bellek("tam"))
+        motor.basla()
+        kule = Bellek("tam").baglam(self.dunya, motor.durum, "Kuleye gidip tepesine tırmanıyorum")
+        self.assertTrue(any(o.startswith("[o10]") for o in kule.odak_olgular))      # merdiven çökük, ip gerek
+        demir = Bellek("tam").baglam(self.dunya, motor.durum, "Demirhanenin kapısını çalıyorum")
+        self.assertIn("oruc", demir.karakter_idleri)
+        self.assertTrue(any(o.startswith("[o5]") for o in demir.odak_olgular))      # körük kırık, ocak soğuk
+        # Adı bilinmeyen karakterin kartı görünüş adıyla, "adını kullanma" uyarısıyla gider
+        kart = next(k for k in demir.karakter_kartlari if "[oruc]" in k)
+        self.assertTrue(kart.startswith("Yaşlı demirci [oruc]"))
+        self.assertIn("DUYMADI", kart)
+
+    def test_acilis_kanonda_a1(self):
+        self.assertIn("a1", {o.id for o in self.dunya.sabit_olgular})
+        self.assertIn("a1", {o.id for o in self.dunya.ilgili_olgular(["han"])})
+
+
 class HafifYazarTesti(unittest.TestCase):
     """Editör açıkken yazar yalnızca sahneyi yazar; sahnenin bilgilerini editör çıkarır."""
 
