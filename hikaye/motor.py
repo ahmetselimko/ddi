@@ -37,7 +37,7 @@ def tekrar_secenekleri_ayikla(secenekler: list[str], eylemler: list[str]) -> tup
     return (kalan if len(kalan) >= 2 else secenekler), uyarilar
 
 
-_ETIKETLI_SATIR = re.compile(r'^[^:"]{1,40}: "(.*)"$')
+ETIKETLI_SATIR = re.compile(r'^[^:"]{1,40}: "(.*)"$')
 
 
 def _norm(metin: str) -> str:
@@ -48,7 +48,7 @@ def sahne_parcalari(metin: str) -> set[str]:
     """Kurulmuş bir sahne metnini (etiketleri atarak) karşılaştırılabilir parçalara böler."""
     parcalar = set()
     for satir in metin.split("\n"):
-        eslesme = _ETIKETLI_SATIR.match(satir.strip())
+        eslesme = ETIKETLI_SATIR.match(satir.strip())
         parcalar.add(_norm(eslesme.group(1) if eslesme else satir))
     return parcalar
 
@@ -222,6 +222,7 @@ class Motor:
         self.deneme = deneme
         self.durum = Durum(mekan=dunya.baslangic_mekan, zaman=dunya.baslangic_zamani)
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
+        self.son_kullanim: dict[str, tuple[int, int]] = {}
 
     def basla(self) -> Sahne:
         if self.durum.sahneler:
@@ -289,6 +290,13 @@ class Motor:
                 self.durum.olgu_ekle(m, ilgili, no)
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
         ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.ozet_llm)
+
+        # Bu turun toplam kullanımı (arayüzdeki harcama sayacı için): rol -> (girdi, çıktı)
+        self.son_kullanim = {
+            rol: (_topla(c.girdi_token for c in liste) or 0, _topla(c.cikti_token for c in liste) or 0)
+            for rol, liste in (("yazar", yanitlar), ("editor", editor_yanitlari),
+                               ("ozet", [ozet_yaniti] if ozet_yaniti else []))
+        }
 
         if self.kayitci:
             cagrilar = yanitlar + editor_yanitlari + ([ozet_yaniti] if ozet_yaniti else [])

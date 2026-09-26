@@ -14,9 +14,22 @@ kalmasını sağlamak ve bunu ölçmek.
 
 ```bash
 cp .env.example .env          # GEMINI_API_KEY'i doldur
-python oyun.py                # oyna: seçenek numarası ya da serbest eylem, çıkış: q
-python oyun.py --ayrinti      # editörün her sahnedeki bulgularını da göster
+python web.py                 # web arayüzü: tarayıcıda http://127.0.0.1:8000 açılır
+python oyun.py                # ya da terminalde oyna: seçenek numarası ya da serbest eylem, çıkış: q
+python oyun.py --ayrinti      # terminalde editörün her sahnedeki bulgularını da göster
 ```
+
+### Web arayüzü
+
+[web.py](web.py) küçük bir yerel sunucu, [web/index.html](web/index.html) tek sayfalık arayüz.
+Ek paket gerekmez. Sahneler sohbet gibi akar; seçenekler buton olarak gelir ya da serbest
+eylem yazılır (klavyeden 1-4 de seçer). **Editör** düğmesi yan paneli açar: son sahnenin
+çelişkileri, karakter uyarıları, vaat defteri, tanışılan karakterler ve tahmini harcama.
+Sayfa yenilense de oyun kaldığı yerden devam eder; sunucu kapanınca oyun biter (kaydı
+`oturumlar/` altında kalır).
+
+Sunucu yalnızca bu bilgisayardan erişilir. `--host 0.0.0.0` ile aynı ağdaki telefondan da
+açılabilir, ama o zaman ağdaki herkes senin API anahtarınla oynayabilir.
 
 Ağ ya da API anahtarı olmadan denemek için:
 
@@ -127,6 +140,8 @@ geçtikleri yerde o karakter sanılır. `gorunen_ad`, oyuncu tanışmadan öncek
 ## Klasörler
 
 ```
+web.py               web arayüzünün yerel sunucusu
+web/index.html       web arayüzü (tek dosya)
 oyun.py              komut satırı
 hikaye/
   dunya.py           dünya kanonu (YAML) ve doğrulama
