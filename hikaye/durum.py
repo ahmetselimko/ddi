@@ -77,6 +77,8 @@ class Durum:
     olgular: list[OyunOlgusu] = field(default_factory=list)
     ozet: str = ""
     taninan: list[str] = field(default_factory=list)   # oyuncunun adını öğrendiği karakterler
+    esyalar: list[str] = field(default_factory=list)   # oyuncunun üzerindekiler
+    akce: int = 0
     # Editör açıkken dolanlar
     vaatler: list[Vaat] = field(default_factory=list)
     celiskiler: list[Celiski] = field(default_factory=list)

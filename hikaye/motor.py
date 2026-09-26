@@ -64,10 +64,11 @@ def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = froze
       unutması imkânsızlaşır; konuşanın kim olduğu da kesin bilinir.
     - Oyuncu adına yazılan replikler atılır: oyuncunun sözünü oyuncu seçer.
     - Oyuncunun adını bilmediği karakterler görünüşleriyle etiketlenir. Karakter
-      tanınmış sayılır: adı bir replikte söylendiğinde, anlatım onu bir tanıtma
-      sözüyle andığında ("adını Nehir olarak tanıtıyor") ya da yazar onu bu sahnede
-      tanıştı diye bildirdiğinde (tanisilan). Bunlar dışında anlatım adı erken
-      kullanırsa uyarı üretir.
+      tanınmış sayılır: adı bir replikte söylendiğinde, ya da anlatım adını anarken
+      bir tanıtma sözü geçtiğinde ("adını Nehir olarak tanıtıyor") veya yazar onu bu
+      sahnede tanıştı diye bildirdiğinde (tanisilan). Yazarın bildirimi tek başına
+      yetmez: ad metinde geçmiyorsa oyuncu onu duymamıştır. Bunlar dışında anlatım
+      adı erken kullanırsa uyarı üretir.
     - Önceki sahneden aynen tekrarlanan parçalar atılır (onceki: sahne_parcalari()).
     - Karakter kartındaki örnek replik aynen tekrarlanmışsa uyarı üretir.
 
@@ -117,9 +118,43 @@ def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = froze
                 else:
                     uyarilar.append(f"anlatım, oyuncunun adını henüz bilmediği {dunya.karakterler[kid].ad} "
                                     "karakterini adıyla andı")
-    # Yazar tanıştı dediği halde adı metinde hiç geçmeyenler de artık tanınıyor
-    taninan.extend(k for k in tanisilan if k in dunya.karakterler and k not in taninan)
     return "\n".join(satirlar), replikler, list(dict.fromkeys(uyarilar)), taninan
+
+
+def _ayni_esya(a: str, b: str) -> bool:
+    return kucult(a).strip() == kucult(b).strip() or (ortusme(a, b) >= 0.6 and ortusme(b, a) >= 0.6)
+
+
+def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:
+    """Yazarın bildirdiği eşya ve akçe değişimini oyuncuya işler. Olmayan eşyanın elden
+    çıkması ya da yetmeyen akçenin ödenmesi uygulanmaz, uyarı olarak döner."""
+    uyarilar = []
+    for esya in envanter["cikan"]:
+        eslesen = next((x for x in durum.esyalar if _ayni_esya(x, esya)), None)
+        if eslesen:
+            durum.esyalar.remove(eslesen)
+        else:
+            uyarilar.append(f"oyuncunun üzerinde olmayan bir eşya kullanıldı ya da elden çıktı: {esya!r}")
+    for esya in envanter["eklenen"]:
+        if not any(_ayni_esya(x, esya) for x in durum.esyalar):
+            durum.esyalar.append(esya)
+    if envanter["akce"]:
+        yeni = durum.akce + envanter["akce"]
+        if yeni < 0:
+            uyarilar.append(f"oyuncunun {durum.akce} akçesi var, {-envanter['akce']} akçe ödeyemez")
+        else:
+            durum.akce = yeni
+    return uyarilar
+
+
+def _envanter_oku(ham) -> dict:
+    ham = ham if isinstance(ham, dict) else {}
+    liste = lambda anahtar: [str(x).strip() for x in ham.get(anahtar) or [] if str(x).strip()]  # noqa: E731
+    try:
+        akce = int(ham.get("akce") or 0)
+    except (TypeError, ValueError):
+        akce = 0
+    return {"eklenen": liste("eklenen"), "cikan": liste("cikan"), "akce": akce}
 
 
 def _ornek_kopyasi_mi(metin: str, ornekler: list[str]) -> bool:
@@ -166,7 +201,8 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
     else:
         # Eski biçim: tek parça metin. Replikler metinden ayrı geldiği için güvenilmez.
         sahne, replikler = str(veri.get("sahne") or "").strip(), []
-        taninan = list(taninan) + [k for k in tanisilan if k not in taninan]
+        adi_gecen = dunya.adi_gecenler(sahne)
+        taninan = list(taninan) + [k for k in tanisilan if k not in taninan and k in adi_gecen]
         if sahne:
             uyarilar.append("akış yerine düz sahne metni döndü")
     if not sahne:
@@ -205,6 +241,7 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
         "replikler": replikler,
         "taninan": taninan,
         "yeni_olgular": yeni_olgular,
+        "envanter": _envanter_oku(veri.get("envanter")),
         "secenekler": secenekler[:4],
     }, uyarilar
 
@@ -220,7 +257,8 @@ class Motor:
         self.kayitci = kayitci
         self.editor = editor if editor and editor.acik else None
         self.deneme = deneme
-        self.durum = Durum(mekan=dunya.baslangic_mekan, zaman=dunya.baslangic_zamani)
+        self.durum = Durum(mekan=dunya.baslangic_mekan, zaman=dunya.baslangic_zamani,
+                           esyalar=list(dunya.oyuncu_esyalar), akce=dunya.oyuncu_akce)
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
 
@@ -240,7 +278,8 @@ class Motor:
         onceki_eylemler = [s.eylem for s in self.durum.sahneler if s.eylem]
         sistem = istem.sistem_istemi(self.dunya)
         kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek, zaman=self.durum.zaman,
-                                       taninan=self.durum.taninan, eylemler=onceki_eylemler)
+                                       taninan=self.durum.taninan, eylemler=onceki_eylemler,
+                                       esyalar=self.durum.esyalar, akce=self.durum.akce)
 
         yanitlar, hatalar = [], []
         istek = kullanici
@@ -288,6 +327,9 @@ class Motor:
         if self.son_bulgular is None:
             for m, ilgili in cozum["yeni_olgular"]:
                 self.durum.olgu_ekle(m, ilgili, no)
+        # Eşya/akçe değişimi editörden SONRA: editör, sahneden önceki envantere bakarak
+        # oyuncunun üzerinde olmayan bir şeyi kullanıp kullanmadığını denetler
+        uyarilar.extend(envanter_uygula(self.durum, cozum["envanter"]))
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
         ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.ozet_llm)
 
@@ -310,6 +352,9 @@ class Motor:
                 editor_basarisiz=bool(self.editor) and self.son_bulgular is None,
                 acik_vaatler=[v.id for v in self.durum.acik_vaatler],
                 taninan=self.durum.taninan,
+                envanter=cozum["envanter"],
+                esyalar=self.durum.esyalar,
+                akce=self.durum.akce,
                 uyarilar=uyarilar,
                 hatalar=hatalar,
                 baglam={

@@ -55,6 +55,13 @@ class GetirimTesti(unittest.TestCase):
     def test_kesme_eki_ve_f5_kok(self):
         self.assertEqual(belirtecle("Oruç'un demirhanesindeki körük"), ["oruç", "demir", "körük"])
 
+    def test_tekrarlanan_sozcukler_kok_duzeyinde(self):
+        from hikaye.getirim import tekrarlanan_sozcukler
+        metinler = ["Fenerin ışığı titriyor.", "Feneri kaldırıyor.", "Fener sönüyor.",
+                    "Elindeki feneri bırakıyor.", "Kadın seni süzüyor."]
+        self.assertEqual(tekrarlanan_sozcukler(metinler, esik=4), [("feneri", 4)])
+        self.assertEqual(tekrarlanan_sozcukler(metinler, esik=4, haric={"fener"}), [])
+
     def test_ortusme_ayni_bilgiyi_farkli_sozle_yakalar(self):
         kanon = "Kervanlar normalde her on günde bir Tuzhan'a uğrar; kırk gündür tek bir kervan gelmedi."
         self.assertGreaterEqual(ortusme("Kırk gündür Tuzhan'a hiç kervan uğramadı.", kanon), 0.6)
@@ -134,6 +141,20 @@ class YanitCozmeTesti(unittest.TestCase):
         cozum, uyarilar = yanit_coz(metin, self.dunya, "han")
         self.assertEqual(cozum["taninan"], ["nehir"])
         self.assertEqual([u for u in uyarilar if "adıyla andı" in u], [])
+
+    def test_yazarin_bildirimi_ad_gecmeden_yetmez(self):
+        metin = gecerli_yanit(akis=[{"anlatim": "Kadın başını sallıyor."},
+                                    {"konusan": "nehir", "replik": "Otur."}], tanisilan=["nehir"])
+        cozum, _ = yanit_coz(metin, self.dunya, "han")
+        self.assertEqual(cozum["taninan"], [])
+        self.assertIn('İri yapılı kadın: "Otur."', cozum["sahne"])
+
+    def test_envanter_okunur(self):
+        cozum, _ = yanit_coz(gecerli_yanit(envanter={"eklenen": ["anahtar"], "cikan": [], "akce": "-5"}),
+                             self.dunya, "han")
+        self.assertEqual(cozum["envanter"], {"eklenen": ["anahtar"], "cikan": [], "akce": -5})
+        cozum, _ = yanit_coz(gecerli_yanit(), self.dunya, "han")
+        self.assertEqual(cozum["envanter"], {"eklenen": [], "cikan": [], "akce": 0})
 
     def test_ayni_uyari_bir_kez(self):
         metin = gecerli_yanit(akis=[{"anlatim": "Selvi'yi düşünüyorsun."}, {"anlatim": "Selvi uzakta."},
@@ -272,6 +293,47 @@ class IstemTesti(unittest.TestCase):
         for k in dunya.karakterler.values():
             self.assertIn(k.tanim, sistem)          # "iri yapılı" kart gelmese de bilinsin
 
+    def test_dunya_kurallari_ve_uzerindekiler(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        self.assertEqual(dunya.kurallar[0].id, "k1")
+        self.assertIn("ateşli silah", sistem_istemi(dunya))
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("tam"))
+        motor.basla()
+        from hikaye.istem import sahne_istemi
+        baglam = Bellek("tam").baglam(dunya, motor.durum, "silahını çek")
+        metin = sahne_istemi(dunya, baglam, "silahını çek", ek=["[EDİTÖR NOTU]\nnot"],
+                             esyalar=motor.durum.esyalar, akce=motor.durum.akce)
+        self.assertIn("[OYUNCUNUN ÜZERİNDEKİLER] pusula, boş harita defteri · 15 akçe", metin)
+        # Editör notu geçmiş sahnelerden SONRA, eylemin hemen önünde (yazarın en son okuduğu yer)
+        self.assertLess(metin.index("[ÖNCEKİ SAHNELER]"), metin.index("[EDİTÖR NOTU]"))
+        self.assertLess(metin.index("[EDİTÖR NOTU]"), metin.index("[OYUNCUNUN EYLEMİ]"))
+
+
+class EnvanterTesti(unittest.TestCase):
+    def test_esya_ve_akce_islenir(self):
+        from hikaye.durum import Durum
+        from hikaye.motor import envanter_uygula
+        durum = Durum(mekan="han", esyalar=["pusula", "boş harita defteri"], akce=15)
+        uyarilar = envanter_uygula(durum, {"eklenen": ["yedi numaranın anahtarı"],
+                                           "cikan": ["pusulanı"], "akce": -5})
+        self.assertEqual(uyarilar, [])
+        self.assertEqual(durum.esyalar, ["boş harita defteri", "yedi numaranın anahtarı"])
+        self.assertEqual(durum.akce, 10)
+
+    def test_olmayan_esya_ve_yetmeyen_akce(self):
+        from hikaye.durum import Durum
+        from hikaye.motor import envanter_uygula
+        durum = Durum(mekan="han", esyalar=["pusula"], akce=3)
+        uyarilar = envanter_uygula(durum, {"eklenen": [], "cikan": ["tabanca"], "akce": -5})
+        self.assertEqual(len(uyarilar), 2)
+        self.assertEqual((durum.esyalar, durum.akce), (["pusula"], 3))   # hiçbiri uygulanmadı
+
+    def test_motor_baslangic_envanteri(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("son"))
+        self.assertEqual((motor.durum.esyalar, motor.durum.akce), (["pusula", "boş harita defteri"], 15))
+        self.assertIsNot(motor.durum.esyalar, dunya.oyuncu_esyalar)      # dünya dosyası değişmesin
+
 
 class EditorTesti(unittest.TestCase):
     def setUp(self):
@@ -332,6 +394,35 @@ class EditorTesti(unittest.TestCase):
         self.assertEqual([(i["durum"], i["olgu"]) for i in b["iddialar"]], [("biliniyor", "o2"), ("yeni", None)])
         self.assertEqual(b["vaatler"]["acilan"], ["Yabancı kimi arıyor?"])
         self.assertEqual(b["otomatik"]["tekrar_vaat"], ["Yedi numaralı odada neler var?"])
+
+    def test_tur_suzgeci_ilerleme_siniri_ve_kural_celiskisi(self):
+        for m in ("Kervan nerede?", "Yabancı kim?", "Kule neden yıkık?"):
+            self.durum.vaat_ac(m, 1)
+        metin = json.dumps({
+            "iddialar": [
+                {"metin": "Nehir Hanım sabırsız biridir.", "tur": "kisilik", "durum": "yeni"},
+                {"metin": "Oyuncunun elinde bir tabanca var.", "tur": "sahiplik", "durum": "celisiyor", "olgu": "k1"},
+            ],
+            "vaatler": {"ilerleyen": [{"id": v, "kanit": "x"} for v in ("v1", "v2", "v3")]},
+        })
+        b = editor_yanit_coz(metin, self.dunya, self.durum)
+        self.assertEqual(b["otomatik"]["atilan_tur"], ["Nehir Hanım sabırsız biridir."])
+        self.assertEqual([(i["durum"], i["olgu"]) for i in b["iddialar"]], [("celisiyor", "k1")])
+        self.assertEqual([x["id"] for x in b["vaatler"]["ilerleyen"]], ["v1", "v2"])
+        self.assertEqual(b["otomatik"]["fazla_ilerleme"], ["v3"])
+
+    def test_yazara_yasananlar_ve_tekrarlar_gider(self):
+        from hikaye.durum import KarakterDegisimi
+        son = self.durum.sahneler[-1]
+        son.karakterler = ["nehir"]
+        son.metin = "\n".join(["Feneri kaldırıyor.", "Fenerin ışığı titriyor.", "Fener sönüyor.",
+                               "Feneri bırakıyor.", 'İri yapılı kadın: "Fener fener fener."'])
+        self.durum.karakter_degisimleri.append(
+            KarakterDegisimi(sahne_no=1, karakter="nehir", degisim="Oyuncu onu omzundan vurdu; öfkeli."))
+        metin = "\n".join(Editor("denetim").yazara_bolumler(self.dunya, self.durum))
+        self.assertIn("omzundan vurdu", metin)
+        self.assertIn("TEKRARLANAN SÖZCÜKLER", metin)
+        self.assertIn("(4 kez)", metin)                  # replikteki "fener"ler sayılmaz
 
     def test_editor_adi_gecen_karakterin_kartini_gorur(self):
         from hikaye.istem import editor_istemi

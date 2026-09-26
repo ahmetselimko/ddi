@@ -19,6 +19,16 @@ giris: >-
 baslangic_mekan: han
 baslangic_zamani: 1. gün, gün batımı
 
+# Oyuncunun başlangıçta üzerindekiler; oyun boyunca takip edilir
+oyuncu_esyalar: [pusula, boş harita defteri]
+oyuncu_akce: 15
+
+# Dünyanın değişmez kuralları: yazar her turda görür, editör bunlara karşı denetler
+kurallar:
+  - Bu dünyada ateşli silah, barut ve tabanca yoktur. Silahlar bıçak, kılıç, yay ve sopadır.
+  - Tuzhan küçük bir kasabadır; bağırış, kavga, yangın gibi büyük olayları herkes duyar ve buna tepki verir.
+  - Doğaüstü güçler herkesin bildiği bir şey değildir; varsa bile gizemdir ve kasabalılar ondan korkar.
+
 # adlar: metinde bu karakteri gösteren ÖZEL adlar. "yabancı", "çocuk" gibi
 #        sıradan kelimeler yazma; her geçtikleri yerde bu karakter sanılır.
 # gorunen_ad: oyuncu adını öğrenmeden önce konuşma etiketi.

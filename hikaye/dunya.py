@@ -67,6 +67,16 @@ class Dunya:
     mekanlar: dict[str, Mekan]
     olgular: list[Olgu]
     baslangic_zamani: str = "1. gün, akşam"
+    # Dünyanın değişmez kuralları ("ateşli silah yoktur"); id'leri k1, k2...
+    # Olgular gibi çelişki denetiminde kullanılır, ama her istemde her zaman görünür.
+    kurallar: list[Olgu] = field(default_factory=list)
+    oyuncu_esyalar: list[str] = field(default_factory=list)
+    oyuncu_akce: int = 0
+
+    @property
+    def sabit_olgular(self) -> list[Olgu]:
+        """Çelişki denetiminin karşılaştırdığı değişmez kanon: olgular + kurallar."""
+        return self.olgular + self.kurallar
 
     def adi_gecenler(self, metin: str, haric=()) -> list[str]:
         """Metinde özel adı (adlar alanı) geçen karakterlerin id'leri; haric dışındakiler."""
@@ -97,6 +107,9 @@ def dunya_yukle(yol: str | Path) -> Dunya:
         mekanlar={m["id"]: Mekan(**m) for m in ham.get("mekanlar", [])},
         olgular=[Olgu(**o) for o in ham.get("olgular", [])],
         baslangic_zamani=ham.get("baslangic_zamani", "1. gün, akşam"),
+        kurallar=[Olgu(id=f"k{i}", metin=m) for i, m in enumerate(ham.get("kurallar") or [], 1)],
+        oyuncu_esyalar=list(ham.get("oyuncu_esyalar") or []),
+        oyuncu_akce=int(ham.get("oyuncu_akce") or 0),
     )
     _dogrula(dunya)
     return dunya

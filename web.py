@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import threading
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -163,6 +164,8 @@ class Oturum:
             "zaman": d.zaman,
             "mekan": dunya.mekanlar[d.mekan].ad,
             "taninan": [dunya.karakterler[k].ad for k in d.taninan if k in dunya.karakterler],
+            "esyalar": d.esyalar,
+            "akce": d.akce,
             "acik_vaatler": [{"id": v.id, "metin": v.metin, "yas": son_no - v.acildigi_sahne + 1,
                               "ilerleme": len(v.ilerledigi_sahneler)} for v in d.acik_vaatler],
             "cozulen_vaatler": [{"id": v.id, "metin": v.metin, "sahne": v.cozuldugu_sahne}
@@ -184,7 +187,7 @@ class Oturum:
         if b is None:
             return None
         dunya, d = self.motor.dunya, self.motor.durum
-        olgu_metni = {o.id: o.metin for o in dunya.olgular} | {o.id: o.metin for o in d.olgular}
+        olgu_metni = {o.id: o.metin for o in dunya.sabit_olgular} | {o.id: o.metin for o in d.olgular}
         ad = lambda k: "Oyuncu" if k == "oyuncu" else dunya.karakterler[k].ad   # noqa: E731
         karakter = [f"{ad(x['karakter'])} · {tur}: {x['gerekce']}"
                     for x in b["karakter_denetimi"]
@@ -256,6 +259,15 @@ def isleyici_olustur(oturum: Oturum):
     return Isleyici
 
 
+def calisiyor_mu(adres: str) -> bool:
+    """Bu adreste Tuzhan sunucusu zaten yanıt veriyor mu?"""
+    try:
+        with urllib.request.urlopen(f"{adres}/api/ayarlar", timeout=1.5) as yanit:
+            return "dunyalar" in json.loads(yanit.read())
+    except (OSError, ValueError):
+        return False
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Türkçe interaktif hikâye oyunu — web arayüzü")
     ap.add_argument("--host", default="127.0.0.1", help="Dinlenecek adres (varsayılan: yalnızca bu bilgisayar)")
@@ -265,9 +277,20 @@ def main() -> None:
     ap.add_argument("--tarayici-acma", action="store_true", help="Tarayıcıyı otomatik açma")
     args = ap.parse_args()
 
-    env_yukle(KOK / ".env")
-    sunucu = ThreadingHTTPServer((args.host, args.port), isleyici_olustur(Oturum(args.llm, args.model)))
     adres = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
+    if calisiyor_mu(adres):
+        # Windows aynı porta ikinci bir sunucunun bağlanmasına izin verebiliyor; o zaman
+        # istekler rastgele birine gider. Zaten açıksa yenisini başlatma, sayfayı aç.
+        print(f"Tuzhan zaten çalışıyor: {adres} — tarayıcıda açılıyor.")
+        if not args.tarayici_acma:
+            webbrowser.open(adres)
+        return
+
+    env_yukle(KOK / ".env")
+    try:
+        sunucu = ThreadingHTTPServer((args.host, args.port), isleyici_olustur(Oturum(args.llm, args.model)))
+    except OSError as e:
+        raise SystemExit(f"{args.port} portu açılamadı ({e}). Başka bir port dene: python web.py --port 8080")
     print(f"Tuzhan çalışıyor: {adres}   (durdurmak için Ctrl+C)")
     if args.host == "0.0.0.0":
         print("UYARI: aynı ağdaki herkes bu oyuna erişebilir ve senin API anahtarını kullanır.")

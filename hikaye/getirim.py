@@ -19,6 +19,10 @@ ve ile de da ki bir bu şu o ama fakat için gibi kadar daha çok en her ne
 mi mı mu mü ya veya hem ise değil var yok olan olarak diye sonra önce hiç
 """.split())
 KOK_UZUNLUGU = 5
+# Üslup tekrarı sayılırken atlanan, her metinde doğal olarak sık geçen sözcükler
+_SIK_SOZCUKLER = set("""
+sana seni senin bana beni benim onun onlar bunu şunu şimdi kendi doğru bakıyor diyor
+""".split())
 
 
 def kucult(metin: str) -> str:
@@ -37,6 +41,25 @@ def ortusme(metin: str, diger: str) -> float:
     if not kokler:
         return 0.0
     return len(kokler & set(belirtecle(diger))) / len(kokler)
+
+
+def tekrarlanan_sozcukler(metinler: list[str], esik: int = 4, en_fazla: int = 8,
+                          haric: set[str] = frozenset()) -> list[tuple[str, int]]:
+    """Metinlerde çok tekrarlanan içerik sözcükleri. Kök (F5) düzeyinde sayar, böylece
+    "fener, feneri, fenerin" tek sözcük sayılır; en sık görülen biçimiyle döndürür.
+    haric: sayılmayacak kökler (ör. karakter adları)."""
+    sayim: Counter = Counter()
+    bicimler: dict[str, Counter] = {}
+    for metin in metinler:
+        for k in kelimeler(metin):
+            if k in DURAK or k in _SIK_SOZCUKLER or len(k) < 4:
+                continue
+            kok = k[:KOK_UZUNLUGU]
+            if kok in haric:
+                continue
+            sayim[kok] += 1
+            bicimler.setdefault(kok, Counter())[k] += 1
+    return [(bicimler[kok].most_common(1)[0][0], n) for kok, n in sayim.most_common(en_fazla) if n >= esik]
 
 
 def belirtecle(metin: str) -> list[str]:

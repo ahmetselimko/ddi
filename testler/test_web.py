@@ -74,6 +74,10 @@ class HttpTesti(unittest.TestCase):
         except urllib.error.HTTPError as h:
             return h.code, h.read()
 
+    def test_calisan_sunucu_algilanir(self):
+        self.assertTrue(web.calisiyor_mu(self.adres))
+        self.assertFalse(web.calisiyor_mu("http://127.0.0.1:1"))
+
     def test_sayfa_ve_api(self):
         kod, govde = self._istek("/")
         self.assertEqual(kod, 200)

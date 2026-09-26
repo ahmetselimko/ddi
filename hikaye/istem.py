@@ -14,12 +14,17 @@ MEKÂNLAR (id: ad — tanım):
 KARAKTERLER (id: ad [oyuncu tanışmadan önce nasıl görünür] — tanım):
 {karakterler}
 
+DÜNYA KURALLARI (asla çiğnenmez):
+{kurallar}
+
 KURALLAR:
 1. Oyuncuya ikinci tekil şahısla, şimdiki zamanda anlat ("Kapıyı itiyorsun.").
 2. OYUNCUNUN SÖZLERİNİ YAZMA ve eylemini genişletme: oyuncuya seçmediği bir söz, yapmadığı bir hareket
    yükleme. Oyuncunun eylemi sana verildi; sahneyi o eylemin sonucundan başlat. Oyuncu bir şey sorduysa
    karşısındaki karakter cevap verir; sır saklıyorsa bile kaçamak, yarım ya da yanıltıcı bir cevapla
-   konuşur. Susmak ve bakışmak cevap değildir.
+   konuşur. Susmak ve bakışmak cevap değildir. Oyuncunun eylemi bir sözse ("Bilmiyorum", "Oda
+   kiralayacağım") oyuncu bunu SÖYLEMİŞ sayılır ve karakterler bu söze cevap verir. Eylem birden çok şey
+   içeriyorsa hepsini ele al; yapılamayanın neden yapılamadığını göster.
 3. Oyuncu yalnızca OYUNCU tanımındakileri ve sahnelerde gördüğünü, duyduğunu bilir. Kanondaki bir bilgiyi,
    bir karakter söylemeden oyuncu biliyormuş gibi anlatma. SEÇENEKLER de buna uyar: oyuncu kimsenin
    bahsetmediği bir odayı, görmediği bir kişiyi soramaz.
@@ -29,9 +34,13 @@ KURALLAR:
    kişilikleri gerektiriyorsa yalan söyleyebilirler ama bunu anlatımda sezdir.
 5. Her sahnede bir şey değişsin: yeni bir bilgi, bir olay, bir engel, bir pazarlık ya da ilişkide bir kırılma.
    Yalnızca mekân ve atmosfer anlatan sahne yazma.
-6. Sahnede karakter varsa konuşur: en az 2 replik. Betimleme sahnenin en fazla üçte biri olsun.
+6. Sahnede karakter varsa konuşur: en az 2 replik. Betimleme canlı ve duyusal olsun (ses, koku, ışık,
+   dokunma, sıcaklık); her sahnede daha önce kullanılmamış en az bir yeni ayrıntı ver. Aynı imgeleri ve
+   kalıpları (fener ışığı, "seni süzüyor", "yankılanıyor") tekrar tekrar kullanma. Sahne yalnızca
+   betimlemeden de oluşmasın.
 7. Karakterler kartlarındaki kişilikten çıkmasın: şüpheci biri ilk tanıştığı yabancıya sırlarını dökmez,
-   güven adım adım kazanılır. Konuşma üsluplarını koru ama örnek replikleri aynen tekrarlama.
+   güven adım adım kazanılır. Duygular olayların ağırlığıyla orantılı ve kalıcıdır: saldırıya uğrayan
+   biri saldırganına hemen yumuşamaz. Konuşma üsluplarını koru ama örnek replikleri aynen tekrarlama.
 8. Oyuncunun adını henüz bilmediği karakterlerden adıyla değil görünüşüyle söz et. Karakter kendini
    tanıtınca ya da biri onu adıyla anınca adını kullanabilirsin.
 9. Verilen olgularla, özetle ve önceki sahnelerle çelişme. Kanonda olmayan küçük ayrıntıları uydurabilirsin;
@@ -44,7 +53,10 @@ KURALLAR:
     oyuncunun zaten yaptığı ya da sorduğu şeyi tekrar önerme. Oyuncuya bir şey söyleten seçenekte ne
     söyleyeceği açık olsun ve yalnızca bildiklerinden oluşsun ("Loncanın sana ayrıntı vermediğini söyle");
     içeriği belirsiz "... açıkla", "... anlat" seçenekleri yazma. "... gözlemle" gibi edilgen seçenekler yazma.
-13. Oyuncu dünyaya aykırı bir şey yapmaya çalışırsa, bunun neden olmadığını hikâyenin içinde göster.
+13. Oyuncu yalnızca ÜZERİNDEKİLERİ kullanabilir. Üzerinde olmayan bir eşyayı (ör. silah) kullanmaya
+    çalışırsa eli boş kalır: bunu hikâyede göster, o eşya ortaya çıkmaz. Dünya kurallarına aykırı bir şey
+    yapmaya çalışırsa bunun neden olmadığını göster. Büyük olayların sonucu olur: başkaları duyar, gelir,
+    tepki verir.
 14. Yalnızca aşağıdaki biçimde JSON döndür, başka hiçbir şey yazma.
 
 {{
@@ -58,8 +70,12 @@ KURALLAR:
   "karakterler": ["sahnede bulunan karakterlerin id'leri"],
   "tanisilan": ["bu sahnede oyuncunun ADINI öğrendiği karakterlerin id'leri (kendini tanıttı ya da biri onu adıyla andı)"],
   "yeni_olgular": [{{"metin": "bu sahnede kesinleşen yeni bir gerçek", "ilgili": ["karakter/mekân id'leri"]}}],
+  "envanter": {{"eklenen": ["oyuncunun eline geçen eşyalar"], "cikan": ["elinden çıkan eşyalar"], "akce": 0}},
   "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
 }}
+
+envanter: bu sahnede oyuncunun üzerindekilerde olan değişiklik. akce: akçe değişimi (ödediyse eksi,
+aldıysa artı). Değişiklik yoksa boş listeler ve 0.
 
 akis: sahne baştan sona bu parçalardan oluşur, toplam 120-220 kelime. Her konuşma ayrı bir replik
 parçasıdır; konuşmayı anlatım parçasının içine gömme. Replik yalnızca sahnede O ANDA bir karakterin
@@ -98,7 +114,25 @@ def sistem_istemi(dunya: Dunya) -> str:
         oyuncu=dunya.oyuncu,
         mekanlar="\n".join(f"- {m.id}: {m.ad} — {m.tanim}" for m in dunya.mekanlar.values()),
         karakterler="\n".join(_karakter_satiri(k) for k in dunya.karakterler.values()),
+        kurallar="\n".join(f"- {k.metin}" for k in dunya.kurallar) or "- (yok)",
     )
+
+
+def _uzerindekiler(esyalar, akce: int) -> str:
+    return f"{', '.join(esyalar) or 'hiçbir eşya'} · {akce} akçe"
+
+
+def karakter_son_durumlari(dunya: Dunya, durum: Durum, karakterler, once: int | None = None,
+                           kac: int = 3) -> str:
+    """Karakterlerin editörün kaydettiği son tutum değişimleri. Uzun hikâyede modelin
+    "kadın az önce vuruldu" gibi ağır olayları unutmaması için yazara ve editöre gider."""
+    satirlar = []
+    for kid in dict.fromkeys(karakterler):
+        degisimler = [d for d in durum.karakter_degisimleri
+                      if d.karakter == kid and (once is None or d.sahne_no < once)][-kac:]
+        for d in degisimler:
+            satirlar.append(f"- {dunya.karakterler[kid].ad} (sahne {d.sahne_no}): {d.degisim}")
+    return "\n".join(satirlar)
 
 
 def sahne_metni(sahne: Sahne, dunya: Dunya) -> str:
@@ -109,10 +143,15 @@ def sahne_metni(sahne: Sahne, dunya: Dunya) -> str:
 
 
 def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None = None,
-                 zaman: str = "", taninan=(), eylemler=()) -> str:
-    """ek: editörden gelen bölümler (açık vaatler, çelişki ve karakter uyarıları, yazar notu).
-    eylemler: oyuncunun şimdiye kadarki eylemleri — kısa bellekten düşseler de
-    tekrar sorulmasınlar, tekrar önerilmesinler diye her stratejide gider."""
+                 zaman: str = "", taninan=(), eylemler=(), esyalar=None, akce: int | None = None) -> str:
+    """Sıra bilinçli: arka plan (özet, olgular, kartlar) ve geçmiş sahneler başta; editörün
+    uyarıları ve notu (ek) en sonda, oyuncunun eyleminin hemen önünde. Modeller üretime en
+    yakın talimata daha çok uyar (AI Dungeon'daki "Author's Note" da buraya konur).
+    eylemler: oyuncunun şimdiye kadarki eylemleri — kısa bellekten düşseler de tekrar
+    sorulmasınlar, tekrar önerilmesinler diye her stratejide gider."""
+    esyalar = dunya.oyuncu_esyalar if esyalar is None else esyalar
+    akce = dunya.oyuncu_akce if akce is None else akce
+
     bolumler = []
     if baglam.ozet:
         bolumler.append(f"[HİKÂYENİN ŞİMDİYE KADARKİ ÖZETİ]\n{baglam.ozet}")
@@ -120,20 +159,24 @@ def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None =
         bolumler.append("[BİLİNEN OLGULAR]\n" + "\n".join(f"- {o}" for o in baglam.olgular))
     if baglam.karakter_kartlari:
         bolumler.append("[İLGİLİ KARAKTERLER]\n" + "\n\n".join(baglam.karakter_kartlari))
-    bolumler.extend(ek or [])
     if eylemler:
         bolumler.append("[OYUNCUNUN ŞİMDİYE KADAR YAPTIKLARI — karakterler bunları hatırlar; "
                         "tekrar sordurma, seçenek olarak tekrar önerme]\n"
                         + "\n".join(f"{i}. {e}" for i, e in enumerate(eylemler, 1)))
-    bolumler.append(f"[ŞU AN] {zaman or dunya.baslangic_zamani}\n"
-                    f"[OYUNCUNUN ADINI BİLDİĞİ KARAKTERLER] {_taninan_satiri(dunya, taninan)}")
-
     if eylem is None:
         bolumler.append(f"[AÇILIŞ]\n{dunya.giris}")
+    else:
+        bolumler.append("[ÖNCEKİ SAHNELER]\n" + "\n\n".join(baglam.son_sahneler))
+
+    bolumler.append(f"[ŞU AN] {zaman or dunya.baslangic_zamani}\n"
+                    f"[OYUNCUNUN ADINI BİLDİĞİ KARAKTERLER] {_taninan_satiri(dunya, taninan)}\n"
+                    f"[OYUNCUNUN ÜZERİNDEKİLER] {_uzerindekiler(esyalar, akce)}")
+    bolumler.extend(ek or [])
+
+    if eylem is None:
         bolumler.append("Hikâyenin ilk sahnesini yaz. Açılış metnini aynen tekrarlama, oradan devam et. "
                         "Oyuncu henüz bir şey söylemedi ya da yapmadı.")
     else:
-        bolumler.append("[ÖNCEKİ SAHNELER]\n" + "\n\n".join(baglam.son_sahneler))
         bolumler.append(f"[OYUNCUNUN EYLEMİ]\n{eylem}")
         bolumler.append("Bu eylemin sonucunu anlatan bir sonraki sahneyi yaz.")
     return "\n\n".join(bolumler)
@@ -161,7 +204,10 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         + "\nMekânlar:\n"
         + "\n".join(f"- {m.id}: {m.ad} — {m.tanim}" for m in dunya.mekanlar.values())
         + "\nOlgular:\n"
-        + "\n".join(f"- [{o.id}] {o.metin}" for o in dunya.olgular),
+        + "\n".join(f"- [{o.id}] {o.metin}" for o in dunya.olgular)
+        + ("\nDünya kuralları (asla çiğnenmez):\n" + "\n".join(f"- [{k.id}] {k.metin}" for k in dunya.kurallar)
+           if dunya.kurallar else ""),
+        f"[OYUNCUNUN ÜZERİNDEKİLER — bu sahneden önce] {_uzerindekiler(durum.esyalar, durum.akce)}",
     ]
     if oyun_olgulari:
         bolumler.append("[OYUNDA KESİNLEŞEN OLGULAR]\n"
@@ -172,6 +218,9 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     kartlar = [dunya.karakterler[k].kart() for k in ilgili]
     if kartlar:
         bolumler.append("[SAHNEDEKİ YA DA ADI GEÇEN KARAKTERLERİN KARTLARI]\n" + "\n\n".join(kartlar))
+    son_durumlar = karakter_son_durumlari(dunya, durum, sahne.karakterler, once=sahne.no)
+    if son_durumlar:
+        bolumler.append("[BU KARAKTERLERİN ŞİMDİYE KADAR YAŞADIKLARI]\n" + son_durumlar)
     acik = [v for v in durum.acik_vaatler if v.acildigi_sahne < sahne.no]
     if acik:
         bolumler.append("[AÇIK VAATLER — okurun cevabını beklediği sorular]\n"
@@ -188,6 +237,8 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         "1. iddialar: Sahnedeki somut ve kalıcı iddiaları çıkar: görünüş, sayılar, akrabalık, "
         "sahiplik, kim neyi biliyor, kesinleşen olaylar. Yalnızca ileride çelişilirse okurun fark "
         "edeceği, hikâyeye etkisi olan gerçekler. En fazla 6, bunlardan en fazla 3'ü yeni. "
+        "Her birine bir tur ver: olay, sahiplik, iliski, bilgi, gorunus, duygu, kisilik ya da anlik. "
+        "(duygu, kisilik ve anlik türündekiler kanona eklenmez; karakterin kişiliği kartında yazar.) "
         "Her biri için durum:\n"
         '   - "biliniyor": kanonda, mekân/karakter tanımlarında ya da oyun olgularında zaten var '
         '("olgu": o id; mekân/karakter tanımıysa null). "yeni" demeden önce hepsine tek tek bak: '
@@ -207,23 +258,30 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         "2. vaatler:\n"
         "   - acilan: sahnenin açtığı, okurun cevabını merak edeceği YENİ sorular (en fazla 2). "
         "Açık bir vaatle aynı soruyu başka sözcüklerle sorma; öyleyse o vaadi ilerleyen say. "
+        "Karakterlerin sıradan tepkileri vaat değildir (\"X oyuncuyu neden merak ediyor?\", \"neden bu "
+        "saatte kimse uğramaz?\" DEĞİL; \"Sarıca kervanına ne oldu?\", \"Göldeki mavi ışıklar ne?\" gibi "
+        "büyük sırlar vaattir). "
         "Vaat hikâye dünyasına dair bir sırdır (\"Yabancı neyi arıyor?\"); oyuncunun seçimleri "
         "hakkındaki \"oyuncu şunu yaparsa ne olur?\" soruları vaat DEĞİLDİR.\n"
         '   - ilerleyen: [{"id": "v1", "kanit": "bu sahnede o soruya dair yeni bilgi ya da adım"}]. '
         "Sorunun yalnızca anılması ya da bilinen bir şeyin tekrar söylenmesi ilerleme DEĞİLDİR; "
-        "kanıt olarak YENİ bir bilgi gösteremiyorsan yazma.\n"
+        "kanıt olarak YENİ bir bilgi gösteremiyorsan yazma. Bir sahnede en fazla 2 vaat ilerler.\n"
         '   - cozulen: [{"id": "v2", "kanit": "cevabın verildiği yer"}]',
-        "3. karakter_denetimi: sahnede konuşan ya da bir şey yapan her karakter için, kartına göre:\n"
-        '   - kisilik: "uygun" ya da "sapma" (ör. şüpheci biri ilk tanıştığı yabancıya sırlarını '
-        "döküyorsa sapma)\n"
+        "3. karakter_denetimi: sahnede konuşan ya da bir şey yapan her karakter için, kartına ve "
+        "yaşadıklarına göre:\n"
+        '   - kisilik: "uygun" ya da "sapma". Kartındaki kişiliğe VE yaşadıklarına uygun mu? (ör. şüpheci '
+        "biri ilk tanıştığı yabancıya sırlarını döküyorsa sapma; az önce saldırıya uğrayan biri "
+        "saldırganına sıcak davranıp onu içeri davet ediyorsa sapma)\n"
         '   - konusma: "uygun" ya da "sapma" (kartındaki üsluba uymuyorsa ya da başka bir karakterin '
         "hitabını, kalıbını kullanıyorsa sapma)\n"
         '   - bilgi: "uygun" ya da "sizinti" (söylediğini bilemeyecekse sizinti: ör. oyuncunun kim '
         "olduğunu, oyuncu kendini tanıtmadan biliyor)\n"
         "   - gerekce: sapma ya da sızıntı varsa bir cümle, yoksa boş",
         "4. oyuncu_bilgi_sizintisi: anlatım ya da SEÇENEKLER oyuncuya bilemeyeceği bir şeyi (kanonda "
-        "olup kimsenin ona söylemediği, görmediği bir kişi ya da yer) biliyormuş gibi atfediyorsa ya da "
-        "anlatım oyuncuya seçmediği bir söz ve hareket yüklüyorsa bir cümleyle yaz, yoksa boş bırak.",
+        "olup kimsenin ona söylemediği, görmediği bir kişi ya da yer) biliyormuş gibi atfediyorsa, "
+        "anlatım oyuncuya seçmediği bir söz ve hareket yüklüyorsa ya da oyuncu ÜZERİNDE OLMAYAN bir "
+        "eşyayı kullanıyorsa bir cümleyle yaz, yoksa boş bırak. Dünya kurallarına aykırı her şey "
+        '(ör. ateşli silah) ayrıca iddialarda "celisiyor" olarak ilgili kuralın id\'siyle (k1...) yazılır.',
         "5. karakter_degisimleri: bir karakterin tutumunda, inancında ya da oyuncuyla ilişkisinde "
         "bu sahnede kalıcı bir değişim olduysa. Yoksa boş liste.",
     ]
@@ -255,8 +313,8 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     bolumler.append("GÖREVLER:\n" + "\n".join(gorevler))
     bolumler.append(
         "JSON BİÇİMİ:\n{\n"
-        '  "iddialar": [{"metin": "iddia", "durum": "yeni, biliniyor ya da celisiyor", '
-        '"olgu": "ilgili olgu id\'si ya da null", "ilgili": ["karakter/mekân id\'leri"]}],\n'
+        '  "iddialar": [{"metin": "iddia", "tur": "olay", "durum": "yeni, biliniyor ya da celisiyor", '
+        '"olgu": "ilgili olgu ya da kural id\'si veya null", "ilgili": ["karakter/mekân id\'leri"]}],\n'
         '  "vaatler": {"acilan": ["yeni soru"], "ilerleyen": [{"id": "v1", "kanit": "..."}], '
         '"cozulen": []},\n'
         '  "karakter_denetimi": [{"karakter": "id", "kisilik": "uygun", "konusma": "uygun", '

@@ -359,6 +359,7 @@ function paneliCiz() {
       ust: x.metin, alt: `${x.yas} sahnedir açık · ${x.ilerleme} kez ilerledi` })), "mavi", "Açık vaat yok."));
     ic.append(liste("Çözülenler", v.cozulen_vaatler.map((x) => ({ ust: x.metin, alt: `${x.sahne}. sahnede çözüldü` })), "yesil", "Henüz yok."));
   } else {
+    ic.append(liste("Üzerindekiler", [`${(v.esyalar || []).join(", ") || "hiçbir eşya"} · ${v.akce ?? 0} akçe`], ""));
     ic.append(liste("Adını bildiğin karakterler", v.taninan, "", "Henüz kimseyle tanışmadın."));
     ic.append(liste("Karakter değişimleri", v.degisimler, "", "Henüz yok."));
     ic.append(liste("Oyunda kesinleşenler (son 12)", [...v.olgular].reverse(), "", "Henüz yok."));
