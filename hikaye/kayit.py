@@ -23,6 +23,10 @@ class Kayitci:
     def tur(self, **alanlar) -> None:
         self._yaz({"tip": "tur", **alanlar})
 
+    def geri_al(self, no: int) -> None:
+        """Oyuncu son sahneyi yeniden yazdırdı: bu numaralı önceki tur kaydı geçersiz."""
+        self._yaz({"tip": "geri_al", "no": no})
+
     def _yaz(self, kayit: dict) -> None:
         with self.yol.open("a", encoding="utf-8") as f:
             f.write(json.dumps(kayit, ensure_ascii=False, default=_serilestir) + "\n")

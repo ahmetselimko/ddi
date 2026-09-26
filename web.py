@@ -25,7 +25,7 @@ from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import dunya_yukle
 from hikaye.editor import MODLAR, Editor
 from hikaye.kayit import Kayitci
-from hikaye.llm import env_yukle, llm_olustur
+from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
 from hikaye.motor import ETIKETLI_SATIR, Motor, YanitHatasi
 
 KOK = Path(__file__).parent
@@ -38,6 +38,7 @@ FIYATLAR = {
     "gemini-2.5-flash": (0.30, 2.50),
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-3.1-flash-lite": (0.25, 1.50),
+    "gemini-3.8-flash": (0.75, 3.75),     # 31.12.2026'ya kadar geçerli fiyat
 }
 
 
@@ -67,6 +68,7 @@ class Oturum:
         self.llm_turu = llm_turu
         self.model = model
         self.kayit_klasoru = kayit_klasoru
+        self.yazar = "hizli"
         self.motor: Motor | None = None
         self.kilit = threading.Lock()
         self.harcama = {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
@@ -76,26 +78,30 @@ class Oturum:
             "dunyalar": sorted(p.stem for p in DUNYA_KLASORU.glob("*.yaml")),
             "bellekler": list(STRATEJILER),
             "editorler": list(MODLAR),
-            "varsayilan": {"dunya": "tuzhan", "bellek": "tam", "editor": "tam"},
+            "yazarlar": {ad: s["aciklama"] for ad, s in YAZAR_SECENEKLERI.items()},
+            "varsayilan": {"dunya": "tuzhan", "bellek": "tam", "editor": "tam", "yazar": "hizli"},
             "llm": self.llm_turu,
             "oyun_var": self.motor is not None,
         }
 
-    def yeni(self, dunya: str, bellek: str, editor: str) -> dict:
+    def yeni(self, dunya: str, bellek: str, editor: str, yazar: str = "hizli") -> dict:
         if dunya not in self.ayarlar()["dunyalar"]:
             raise ValueError(f"Bilinmeyen dünya: {dunya}")
-        if bellek not in STRATEJILER or editor not in MODLAR:
-            raise ValueError("Geçersiz bellek ya da editör seçimi.")
+        if bellek not in STRATEJILER or editor not in MODLAR or yazar not in YAZAR_SECENEKLERI:
+            raise ValueError("Geçersiz bellek, editör ya da yazar seçimi.")
         with self.kilit:
             d = dunya_yukle(DUNYA_KLASORU / f"{dunya}.yaml")
-            llm = llm_olustur(self.llm_turu, dunya=d, model=self.model)
+            llm = llm_olustur(self.llm_turu, dunya=d, model=self.model, yazar=yazar)
+            # Güçlü/düşünen seçenek yalnızca yazarı etkiler; editör ve özet temel modelde kalır
+            temel = llm if yazar == "hizli" else llm_olustur(self.llm_turu, dunya=d, yazar="hizli")
             editor_modeli, ozet_modeli = os.environ.get("EDITOR_MODEL"), os.environ.get("OZET_MODEL")
-            editor_llm = llm_olustur(self.llm_turu, dunya=d, model=editor_modeli) if editor_modeli else llm
-            ozet_llm = llm_olustur(self.llm_turu, dunya=d, model=ozet_modeli) if ozet_modeli else llm
+            editor_llm = llm_olustur(self.llm_turu, dunya=d, model=editor_modeli) if editor_modeli else temel
+            ozet_llm = llm_olustur(self.llm_turu, dunya=d, model=ozet_modeli) if ozet_modeli else temel
             kayitci = Kayitci(self.kayit_klasoru, meta={
-                "dunya": d.ad, "llm": llm.ad, "editor_llm": editor_llm.ad, "ozet_llm": ozet_llm.ad,
-                "bellek": bellek, "editor": editor, "arayuz": "web",
+                "dunya": d.ad, "llm": llm.ad, "yazar": yazar, "editor_llm": editor_llm.ad,
+                "ozet_llm": ozet_llm.ad, "bellek": bellek, "editor": editor, "arayuz": "web",
             })
+            self.yazar = yazar
             self.motor = Motor(d, llm, Bellek(bellek), kayitci, editor=Editor(editor),
                                editor_llm=editor_llm, ozet_llm=ozet_llm)
             self.harcama = {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
@@ -112,6 +118,14 @@ class Oturum:
             if self.motor is None:
                 raise ValueError("Önce yeni bir oyun başlat.")
             sahne = self.motor.oyna(eylem)
+            return self._yanit(sahne)
+
+    def yeniden(self) -> dict:
+        """Son sahneyi geri alıp aynı eylemle yeniden yazdırır."""
+        with self.kilit:
+            if self.motor is None or not self.motor.durum.sahneler:
+                raise ValueError("Yeniden yazılacak sahne yok.")
+            sahne = self.motor.yeniden_yaz()
             return self._yanit(sahne)
 
     def durum(self) -> dict:
@@ -179,7 +193,7 @@ class Oturum:
                         "dolar": round(self.harcama["dolar"], 4),
                         "tam_degil": self.harcama["bilinmiyor"]},
             "ayar": {"bellek": m.bellek.strateji, "editor": m.editor.mod if m.editor else "yok",
-                     "model": m.llm.ad},
+                     "yazar": self.yazar, "model": m.llm.ad},
         }
 
     def _editor_ozeti(self) -> dict | None:
@@ -229,9 +243,11 @@ def isleyici_olustur(oturum: Oturum):
                 govde = json.loads(self.rfile.read(uzunluk) or b"{}") if uzunluk else {}
                 if self.path == "/api/yeni":
                     self._json(200, oturum.yeni(govde.get("dunya", "tuzhan"), govde.get("bellek", "tam"),
-                                                govde.get("editor", "tam")))
+                                                govde.get("editor", "tam"), govde.get("yazar", "hizli")))
                 elif self.path == "/api/oyna":
                     self._json(200, oturum.oyna(govde.get("eylem", "")))
+                elif self.path == "/api/yeniden":
+                    self._json(200, oturum.yeniden())
                 else:
                     self._json(404, {"hata": "Bulunamadı."})
             except (ValueError, json.JSONDecodeError) as e:

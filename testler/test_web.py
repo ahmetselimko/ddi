@@ -99,6 +99,13 @@ class HttpTesti(unittest.TestCase):
         self.assertEqual(kod, 400)
         self.assertIn("hata", json.loads(govde))
 
+        kod, govde = self._istek("/api/yeniden", {})
+        self.assertEqual(kod, 200)
+        self.assertEqual(json.loads(govde)["sahne"]["no"], 2)          # 2. sahne yeniden yazıldı
+
+        kod, govde = self._istek("/api/yeni", {"dunya": "tuzhan", "yazar": "olmayan"})
+        self.assertEqual(kod, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

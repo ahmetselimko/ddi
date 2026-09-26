@@ -5,12 +5,13 @@ Oyun motoru. Bir tur:
 
 Yazar, editör ve özet için ayrı modeller kullanılabilir (ör. özet için daha ucuzu).
 """
+import copy
 import re
 
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
-from .durum import Durum, Replik, Sahne
+from .durum import Durum, Replik, Sahne, envanter_oku, envanter_uygula
 from .editor import Editor
 from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
@@ -121,42 +122,6 @@ def akisi_birlestir(parcalar, dunya: Dunya, taninan=(), onceki: set[str] = froze
     return "\n".join(satirlar), replikler, list(dict.fromkeys(uyarilar)), taninan
 
 
-def _ayni_esya(a: str, b: str) -> bool:
-    return kucult(a).strip() == kucult(b).strip() or (ortusme(a, b) >= 0.6 and ortusme(b, a) >= 0.6)
-
-
-def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:
-    """Yazarın bildirdiği eşya ve akçe değişimini oyuncuya işler. Olmayan eşyanın elden
-    çıkması ya da yetmeyen akçenin ödenmesi uygulanmaz, uyarı olarak döner."""
-    uyarilar = []
-    for esya in envanter["cikan"]:
-        eslesen = next((x for x in durum.esyalar if _ayni_esya(x, esya)), None)
-        if eslesen:
-            durum.esyalar.remove(eslesen)
-        else:
-            uyarilar.append(f"oyuncunun üzerinde olmayan bir eşya kullanıldı ya da elden çıktı: {esya!r}")
-    for esya in envanter["eklenen"]:
-        if not any(_ayni_esya(x, esya) for x in durum.esyalar):
-            durum.esyalar.append(esya)
-    if envanter["akce"]:
-        yeni = durum.akce + envanter["akce"]
-        if yeni < 0:
-            uyarilar.append(f"oyuncunun {durum.akce} akçesi var, {-envanter['akce']} akçe ödeyemez")
-        else:
-            durum.akce = yeni
-    return uyarilar
-
-
-def _envanter_oku(ham) -> dict:
-    ham = ham if isinstance(ham, dict) else {}
-    liste = lambda anahtar: [str(x).strip() for x in ham.get(anahtar) or [] if str(x).strip()]  # noqa: E731
-    try:
-        akce = int(ham.get("akce") or 0)
-    except (TypeError, ValueError):
-        akce = 0
-    return {"eklenen": liste("eklenen"), "cikan": liste("cikan"), "akce": akce}
-
-
 def _ornek_kopyasi_mi(metin: str, ornekler: list[str]) -> bool:
     norm = _norm(metin)
     for ornek in ornekler:
@@ -182,10 +147,11 @@ def _konusan_bul(konusan, dunya: Dunya) -> str | None:
 
 
 def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
-              onceki_metin: str = "") -> tuple[dict, list[str]]:
+              onceki_metin: str = "", hafif: bool = False) -> tuple[dict, list[str]]:
     """Model yanıtını doğrular. Kurtarılabilir sorunları düzeltip uyarı olarak
     döndürür (bilinmeyen id'ler tutarsızlık işaretidir, kayda geçer); sahne ya da
-    seçenek yoksa YanitHatasi fırlatır. onceki_metin: bir önceki sahne (tekrar denetimi)."""
+    seçenek yoksa YanitHatasi fırlatır. onceki_metin: bir önceki sahne (tekrar denetimi).
+    hafif: yazardan mekân/zaman/karakter istenmedi; yoklukları uyarı sayılmaz."""
     try:
         veri = json_coz(metin)
     except ValueError as e:
@@ -216,7 +182,8 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
 
     mekan = veri.get("mekan")
     if mekan not in dunya.mekanlar:
-        uyarilar.append(f"bilinmeyen mekân: {mekan!r}")
+        if mekan is not None or not hafif:
+            uyarilar.append(f"bilinmeyen mekân: {mekan!r}")
         mekan = onceki_mekan
 
     karakterler = []
@@ -241,7 +208,7 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
         "replikler": replikler,
         "taninan": taninan,
         "yeni_olgular": yeni_olgular,
-        "envanter": _envanter_oku(veri.get("envanter")),
+        "envanter": envanter_oku(veri.get("envanter")),
         "secenekler": secenekler[:4],
     }, uyarilar
 
@@ -261,6 +228,24 @@ class Motor:
                            esyalar=list(dunya.oyuncu_esyalar), akce=dunya.oyuncu_akce)
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
+        self._tur_oncesi: tuple[Durum, str | None] | None = None   # "yeniden yaz" için
+
+    @property
+    def hafif_yazar(self) -> bool:
+        """Editör açıkken yazar yalnızca sahneyi yazar; sahnenin bilgilerini editör çıkarır."""
+        return self.editor is not None
+
+    def yeniden_yaz(self) -> Sahne:
+        """Son sahneyi geri alıp aynı eylemle yeniden yazdırır. Durum, son turdan
+        önceki hâline döner (olgular, vaatler, eşyalar dahil)."""
+        if self._tur_oncesi is None:
+            raise RuntimeError("Yeniden yazılacak sahne yok.")
+        onceki_durum, eylem = self._tur_oncesi
+        geri_alinan = len(self.durum.sahneler)
+        self.durum = copy.deepcopy(onceki_durum)
+        if self.kayitci:
+            self.kayitci.geri_al(geri_alinan)
+        return self._tur(eylem)
 
     def basla(self) -> Sahne:
         if self.durum.sahneler:
@@ -273,10 +258,12 @@ class Motor:
         return self._tur(eylem)
 
     def _tur(self, eylem: str | None) -> Sahne:
+        self._tur_oncesi = (copy.deepcopy(self.durum), eylem)
+        hafif = self.hafif_yazar
         baglam = self.bellek.baglam(self.dunya, self.durum, eylem)
         ek = self.editor.yazara_bolumler(self.dunya, self.durum) if self.editor else []
         onceki_eylemler = [s.eylem for s in self.durum.sahneler if s.eylem]
-        sistem = istem.sistem_istemi(self.dunya)
+        sistem = istem.sistem_istemi(self.dunya, hafif=hafif)
         kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek, zaman=self.durum.zaman,
                                        taninan=self.durum.taninan, eylemler=onceki_eylemler,
                                        esyalar=self.durum.esyalar, akce=self.durum.akce)
@@ -289,7 +276,7 @@ class Motor:
             try:
                 onceki_metin = self.durum.sahneler[-1].metin if self.durum.sahneler else ""
                 cozum, uyarilar = yanit_coz(yanit.metin, self.dunya, self.durum.mekan,
-                                            self.durum.taninan, onceki_metin)
+                                            self.durum.taninan, onceki_metin, hafif=hafif)
                 break
             except YanitHatasi as e:
                 hatalar.append(str(e))
@@ -302,34 +289,41 @@ class Motor:
         uyarilar.extend(tekrar_uyarilari)
 
         no = len(self.durum.sahneler) + 1
+        konusanlar = list(dict.fromkeys(r.karakter for r in cozum["replikler"]))
         sahne = Sahne(
             no=no,
             eylem=eylem,
-            mekan=cozum["mekan"],
+            mekan=cozum["mekan"],                      # hafif yazarda geçici: editör düzeltir
             metin=cozum["sahne"],
-            karakterler=cozum["karakterler"],
+            karakterler=cozum["karakterler"] or konusanlar,
             replikler=cozum["replikler"],
             secenekler=cozum["secenekler"],
             zaman=cozum["zaman"] or self.durum.zaman,
             uyarilar=uyarilar,
         )
         self.durum.sahneler.append(sahne)
-        self.durum.mekan = sahne.mekan
-        self.durum.zaman = sahne.zaman
         self.durum.taninan = cozum["taninan"]
         olgu_sayisi = len(self.durum.olgular)
 
-        # Editör açıksa yeni olguların kaynağı editördür (kanona karşı sınıflanmış
-        # iddialar); kapalıysa ya da başarısız olursa yazarın bildirdikleri.
+        # Editör açıksa sahnenin bilgilerini (mekân, zaman, karakterler, eşyalar) ve yeni
+        # olguları editör çıkarır; kapalıysa ya da başarısız olursa yazarın bildirdikleri.
+        # Editör, durumun SAHNEDEN ÖNCEKİ hâlini görür (ör. oyuncunun üzerindekiler).
         self.son_bulgular, editor_yanitlari = None, []
         if self.editor:
             self.son_bulgular, editor_yanitlari = self.editor.denetle(self.dunya, self.durum, self.editor_llm)
-        if self.son_bulgular is None:
+        envanter = cozum["envanter"]
+        if self.son_bulgular is not None:
+            sb = self.son_bulgular["sahne_bilgisi"]
+            sahne.mekan = sb["mekan"] or sahne.mekan
+            sahne.zaman = sb["zaman"] or sahne.zaman
+            if sb["karakterler"]:
+                sahne.karakterler = list(dict.fromkeys(sb["karakterler"] + konusanlar))
+            envanter = sb["envanter"]
+        else:
             for m, ilgili in cozum["yeni_olgular"]:
                 self.durum.olgu_ekle(m, ilgili, no)
-        # Eşya/akçe değişimi editörden SONRA: editör, sahneden önceki envantere bakarak
-        # oyuncunun üzerinde olmayan bir şeyi kullanıp kullanmadığını denetler
-        uyarilar.extend(envanter_uygula(self.durum, cozum["envanter"]))
+        self.durum.mekan, self.durum.zaman = sahne.mekan, sahne.zaman
+        uyarilar.extend(envanter_uygula(self.durum, envanter))
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
         ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.ozet_llm)
 

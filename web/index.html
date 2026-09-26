@@ -155,6 +155,7 @@
     .anlatim, .replik .soz { font-size: 16px; }
     .konum { display: none; }
   }
+  @media (max-width: 480px) { .dar-gizle { display: none; } }
 </style>
 </head>
 <body>
@@ -191,6 +192,7 @@
     <form class="serbest" id="serbest-form">
       <input id="serbest" maxlength="300" placeholder="Ya da ne yapacağını kendin yaz…" autocomplete="off">
       <button class="ana-dugme" type="submit">Gönder</button>
+      <button class="ikon-dugme" type="button" id="yeniden-dugme" title="Son sahneyi aynı eylemle yeniden yazdır">↻<span class="dar-gizle"> Yeniden yaz</span></button>
     </form>
   </div>
 </footer>
@@ -212,6 +214,11 @@
       <label for="editor-sec">Editör</label>
       <select id="editor-sec"></select>
       <small id="editor-aciklama"></small>
+    </div>
+    <div class="alan">
+      <label for="yazar-sec">Yazar modeli</label>
+      <select id="yazar-sec"></select>
+      <small id="yazar-aciklama"></small>
     </div>
     <div class="dugmeler">
       <button type="button" class="ikon-dugme" id="vazgec">Vazgeç</button>
@@ -236,6 +243,7 @@ const ACIKLAMA = {
     denetim: "Yalnızca tutarlılık, karakter ve vaat denetimi. Biraz daha ucuz.",
     yok: "Editör kapalı. En hızlı, en az tutarlı.",
   },
+  yazar: {},          // sunucudan gelir (/api/ayarlar)
 };
 
 const $ = (s) => document.querySelector(s);
@@ -363,7 +371,7 @@ function paneliCiz() {
     ic.append(liste("Adını bildiğin karakterler", v.taninan, "", "Henüz kimseyle tanışmadın."));
     ic.append(liste("Karakter değişimleri", v.degisimler, "", "Henüz yok."));
     ic.append(liste("Oyunda kesinleşenler (son 12)", [...v.olgular].reverse(), "", "Henüz yok."));
-    ic.append(liste("Ayarlar", [`Hafıza: ${v.ayar.bellek} · Editör: ${v.ayar.editor}`, v.ayar.model], ""));
+    ic.append(liste("Ayarlar", [`Hafıza: ${v.ayar.bellek} · Editör: ${v.ayar.editor} · Yazar: ${v.ayar.yazar}`, v.ayar.model], ""));
   }
 
   const s = v.sayac, h = v.harcama;
@@ -406,6 +414,42 @@ async function oyna(eylem) {
   }
 }
 
+async function yenidenYaz() {
+  if (durum.mesgul || !durum.son) return;
+  const son = $("#sahneler").lastElementChild;
+  if (son) son.remove();
+  secenekleriCiz([]);
+  mesgulOl(true);
+  try {
+    yanitiIsle(await api("/api/yeniden", {}));
+  } catch (e) {
+    bildir(e.message);
+    await durumuYukle();          // sunucudaki gerçek durumla yeniden eşitle
+  } finally {
+    mesgulOl(false);
+  }
+}
+
+/* Sunucudaki oyunu baştan çizer (sayfa yenilenince ya da bir hatadan sonra). */
+async function durumuYukle() {
+  const d = await api("/api/durum");
+  $("#sahneler").replaceChildren();
+  if (!d.oyun_var || !d.sahneler.length) {
+    durum.son = null;
+    secenekleriCiz([]);
+    paneliCiz();
+    return false;
+  }
+  d.sahneler.forEach(sahneCiz);
+  const son = d.sahneler[d.sahneler.length - 1];
+  durum.son = { ...d, sahne: son, editor: null, uyarilar: [] };
+  secenekleriCiz(son.secenekler);
+  ustBilgi(d);
+  paneliCiz();
+  asagiKaydir();
+  return true;
+}
+
 async function yeniOyun(ayar) {
   $("#baslangic").hidden = true;
   $("#sahneler").replaceChildren();
@@ -440,16 +484,9 @@ async function basla() {
     secenekDoldur($("#dunya-sec"), a.dunyalar, a.varsayilan.dunya);
     secenekDoldur($("#bellek-sec"), a.bellekler, a.varsayilan.bellek, ACIKLAMA.bellek, $("#bellek-aciklama"));
     secenekDoldur($("#editor-sec"), a.editorler, a.varsayilan.editor, ACIKLAMA.editor, $("#editor-aciklama"));
-    if (a.oyun_var) {
-      const d = await api("/api/durum");
-      d.sahneler.forEach(sahneCiz);
-      const son = d.sahneler[d.sahneler.length - 1];
-      durum.son = { ...d, sahne: son, editor: null, uyarilar: [] };
-      secenekleriCiz(son.secenekler);
-      ustBilgi(d);
-      paneliCiz();
-      asagiKaydir();
-    } else {
+    ACIKLAMA.yazar = a.yazarlar || {};
+    secenekDoldur($("#yazar-sec"), Object.keys(ACIKLAMA.yazar), a.varsayilan.yazar, ACIKLAMA.yazar, $("#yazar-aciklama"));
+    if (!(a.oyun_var && await durumuYukle())) {
       $("#vazgec").hidden = true;
       $("#baslangic").hidden = false;
     }
@@ -474,8 +511,10 @@ function panelAc(acik) {
 
 $("#baslangic-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  yeniOyun({ dunya: $("#dunya-sec").value, bellek: $("#bellek-sec").value, editor: $("#editor-sec").value });
+  yeniOyun({ dunya: $("#dunya-sec").value, bellek: $("#bellek-sec").value,
+             editor: $("#editor-sec").value, yazar: $("#yazar-sec").value });
 });
+$("#yeniden-dugme").addEventListener("click", yenidenYaz);
 $("#vazgec").addEventListener("click", () => ($("#baslangic").hidden = true));
 $("#yeni-dugme").addEventListener("click", () => {
   if (durum.mesgul) return;

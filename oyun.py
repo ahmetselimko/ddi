@@ -7,7 +7,8 @@ Türkçe interaktif hikâye oyunu — komut satırı.
   python oyun.py --llm yerel --model qwen2.5:7b    # OpenAI uyumlu yerel sunucu (Ollama, vLLM)
   python oyun.py --llm sahte --otomatik 10         # ağsız deneme, 10 tur kendi oynar
 
-Oyunda seçeneğin numarasını ya da serbest bir eylem yaz; çıkmak için q.
+Oyunda seçeneğin numarasını ya da serbest bir eylem yaz; son sahneyi yeniden yazdırmak
+için y, çıkmak için q.
 """
 import argparse
 import os
@@ -20,7 +21,7 @@ from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import dunya_yukle
 from hikaye.editor import MODLAR, Editor
 from hikaye.kayit import Kayitci
-from hikaye.llm import env_yukle, llm_olustur
+from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
 from hikaye.motor import Motor, YanitHatasi
 
 KOK = Path(__file__).parent
@@ -87,6 +88,8 @@ def main() -> None:
     ap.add_argument("--model", help="Yazar modelin adı (verilmezse .env ya da arka ucun varsayılanı)")
     ap.add_argument("--editor-model", help="Editör için ayrı model (varsayılan: .env EDITOR_MODEL ya da yazarınki)")
     ap.add_argument("--ozet-model", help="Özet için ayrı model (varsayılan: .env OZET_MODEL ya da yazarınki)")
+    ap.add_argument("--yazar", choices=list(YAZAR_SECENEKLERI), default="hizli",
+                    help="hizli (varsayılan) · dusunen: yazmadan önce düşünür · guclu: daha güçlü model")
     ap.add_argument("--bellek", choices=STRATEJILER, default="tam",
                     help="tam: modele tüm hikâye gider (varsayılan); diğerleri bağlamı kısaltır")
     ap.add_argument("--editor", choices=MODLAR, default="tam",
@@ -98,15 +101,17 @@ def main() -> None:
 
     env_yukle(KOK / ".env")
     dunya = dunya_yukle(args.dunya)
-    llm = llm_olustur(args.llm, dunya=dunya, model=args.model)
+    llm = llm_olustur(args.llm, dunya=dunya, model=args.model, yazar=args.yazar)
+    # Güçlü/düşünen seçenek yalnızca yazarı etkiler; editör ve özet temel modelde kalır
+    temel = llm if args.yazar == "hizli" else llm_olustur(args.llm, dunya=dunya, yazar="hizli")
     editor_modeli = args.editor_model or os.environ.get("EDITOR_MODEL")
     ozet_modeli = args.ozet_model or os.environ.get("OZET_MODEL")
-    editor_llm = llm_olustur(args.llm, dunya=dunya, model=editor_modeli) if editor_modeli else llm
-    ozet_llm = llm_olustur(args.llm, dunya=dunya, model=ozet_modeli) if ozet_modeli else llm
+    editor_llm = llm_olustur(args.llm, dunya=dunya, model=editor_modeli) if editor_modeli else temel
+    ozet_llm = llm_olustur(args.llm, dunya=dunya, model=ozet_modeli) if ozet_modeli else temel
 
     kayitci = Kayitci(KOK / "oturumlar", meta={
         "dunya": dunya.ad, "llm": llm.ad, "editor_llm": editor_llm.ad, "ozet_llm": ozet_llm.ad,
-        "bellek": args.bellek, "editor": args.editor, "otomatik": args.otomatik, "tohum": args.tohum,
+        "yazar": args.yazar, "bellek": args.bellek, "editor": args.editor, "otomatik": args.otomatik, "tohum": args.tohum,
     })
     motor = Motor(dunya, llm, Bellek(args.bellek), kayitci, editor=Editor(args.editor),
                   editor_llm=editor_llm, ozet_llm=ozet_llm)
@@ -143,7 +148,12 @@ def main() -> None:
                 eylem = giris
 
         try:
-            sahne = motor.oyna(eylem)
+            if args.otomatik is None and eylem.lower() == "y":
+                sahne = motor.yeniden_yaz()          # son sahneyi aynı eylemle yeniden yazdır
+                print("
+[Son sahne yeniden yazıldı]")
+            else:
+                sahne = motor.oyna(eylem)
         except YanitHatasi as e:
             print(f"\n[Model geçerli bir sahne üretemedi: {e}]")
             if args.otomatik is not None:

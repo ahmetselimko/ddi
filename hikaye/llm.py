@@ -49,8 +49,20 @@ def env_yukle(yol: Path) -> None:
         os.environ.setdefault(anahtar.strip(), deger.strip().strip("\"'"))
 
 
+# Yazar modeli seçenekleri. Editör ve özet her zaman temel (hızlı) modeli kullanır.
+# model None: .env'deki GEMINI_MODEL. dusunme: düşünme bütçesi (token); None: modelin varsayılanı.
+YAZAR_SECENEKLERI = {
+    "hizli":   {"model": None, "dusunme": 0,
+                "aciklama": "Gemini 2.5 Flash, düşünmesiz. En hızlı ve en ucuz (varsayılan)."},
+    "dusunen": {"model": None, "dusunme": 1024,
+                "aciklama": "Aynı model, yazmadan önce düşünür. Daha tutarlı, tur başına ~1,5-2 kat maliyet."},
+    "guclu":   {"model": "gemini-3.8-flash", "dusunme": None,
+                "aciklama": "Daha yeni ve güçlü model. En iyi anlatım, tur başına ~2-3 kat maliyet."},
+}
+
+
 class GeminiLLM:
-    def __init__(self, model: str):
+    def __init__(self, model: str, dusunme: int | None = 0):
         from google import genai
         from google.genai import types
 
@@ -60,24 +72,35 @@ class GeminiLLM:
         self._istemci = genai.Client(api_key=anahtar)
         self._types = types
         self.model = model
+        self.dusunme = dusunme
         self.ad = f"gemini:{model}"
+
+    def _dusunme_ayari(self):
+        # Düşünme bütçesi yalnızca 2.5 ailesinde ayarlanır; 3.x modelleri kendi
+        # varsayılanıyla düşünür (bütçe 0'ı desteklemeyebilirler). Pro modeller kapatılamaz.
+        if not self.model.startswith("gemini-2.5") or self.dusunme is None:
+            return None
+        if self.dusunme == 0 and "pro" in self.model:
+            return None
+        return self._types.ThinkingConfig(thinking_budget=self.dusunme)
 
     def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
         ayar = self._types.GenerateContentConfig(
             system_instruction=sistem,
             temperature=sicaklik,
             response_mime_type="application/json" if json_mod else "text/plain",
-            # Oyun akıcı olsun diye düşünme kapalı; kalite farkı ayrıca denenebilir
-            thinking_config=self._types.ThinkingConfig(thinking_budget=0),
+            thinking_config=self._dusunme_ayari(),
         )
         bas = time.monotonic()
         yanit = self._istemci.models.generate_content(model=self.model, contents=kullanici, config=ayar)
         kullanim = yanit.usage_metadata
+        cikti = getattr(kullanim, "candidates_token_count", None)
+        dusunce = getattr(kullanim, "thoughts_token_count", None) or 0   # düşünme de çıktı fiyatından
         return LLMYanit(
             metin=yanit.text or "",
             sure=time.monotonic() - bas,
             girdi_token=getattr(kullanim, "prompt_token_count", None),
-            cikti_token=getattr(kullanim, "candidates_token_count", None),
+            cikti_token=(cikti or 0) + dusunce if cikti is not None or dusunce else None,
         )
 
 
@@ -184,9 +207,12 @@ class SahteLLM:
         return yanit
 
 
-def llm_olustur(tur: str, dunya=None, model: str | None = None):
+def llm_olustur(tur: str, dunya=None, model: str | None = None, yazar: str | None = None):
+    """yazar: YAZAR_SECENEKLERI'nden biri (yalnızca gemini'de anlamlı; diğerleri yok sayar)."""
     if tur == "gemini":
-        return GeminiLLM(model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"))
+        secenek = YAZAR_SECENEKLERI[yazar or "hizli"]
+        model = model or secenek["model"] or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        return GeminiLLM(model, dusunme=secenek["dusunme"])
     if tur == "yerel":
         return YerelLLM(
             model=model or os.environ.get("YEREL_LLM_MODEL", "qwen2.5:7b-instruct"),

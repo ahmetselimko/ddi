@@ -309,6 +309,99 @@ class IstemTesti(unittest.TestCase):
         self.assertLess(metin.index("[EDİTÖR NOTU]"), metin.index("[OYUNCUNUN EYLEMİ]"))
 
 
+class HafifYazarTesti(unittest.TestCase):
+    """Editör açıkken yazar yalnızca sahneyi yazar; sahnenin bilgilerini editör çıkarır."""
+
+    def test_hafif_istem_form_alanlari_istemez(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        hafif, tam = sistem_istemi(dunya, hafif=True), sistem_istemi(dunya, hafif=False)
+        for alan in ('"yeni_olgular"', '"envanter"', '"zaman"', '"tanisilan"'):
+            self.assertNotIn(alan, hafif)
+            self.assertIn(alan, tam)
+        self.assertIn('"secenekler"', hafif)
+
+    def test_editorun_sahne_bilgisi_uygulanir(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+
+        class SahneBilgisiVerenLLM(SahteLLM):
+            def _editor_yaniti(self, n, kullanici):
+                yanit = super()._editor_yaniti(n, kullanici)
+                yanit["sahne_bilgisi"] = {"mekan": "demirhane", "zaman": "2. gün, sabah",
+                                          "karakterler": ["oruc", "vezir"],
+                                          "envanter": {"eklenen": ["ip"], "cikan": [], "akce": -5}}
+                return yanit
+
+        motor = Motor(dunya, SahneBilgisiVerenLLM(dunya), Bellek("tam"), editor=Editor("denetim"))
+        sahne = motor.basla()
+        self.assertEqual((sahne.mekan, sahne.zaman), ("demirhane", "2. gün, sabah"))
+        self.assertEqual((motor.durum.mekan, motor.durum.zaman), ("demirhane", "2. gün, sabah"))
+        self.assertIn("oruc", sahne.karakterler)
+        self.assertNotIn("vezir", sahne.karakterler)
+        self.assertEqual((motor.durum.esyalar[-1], motor.durum.akce), ("ip", 10))
+
+    def test_editor_sahneden_onceki_durumu_gorur(self):
+        from hikaye.istem import editor_istemi
+        dunya = dunya_yukle(DUNYA_YOLU)
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("son"))
+        motor.basla()
+        _, kullanici = editor_istemi(dunya, motor.durum, motor.durum.sahneler[-1], [], zanaat_acik=False)
+        self.assertIn(f"[SAHNEDEN ÖNCE] mekân: {dunya.mekanlar[motor.durum.mekan].ad}", kullanici)
+        self.assertIn("sahne_bilgisi", kullanici)
+
+
+class YenidenYazTesti(unittest.TestCase):
+    def test_son_sahne_geri_alinip_yeniden_yazilir(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        with tempfile.TemporaryDirectory() as klasor:
+            kayitci = Kayitci(Path(klasor), meta={"bellek": "tam"})
+            motor = Motor(dunya, SahteLLM(dunya), Bellek("tam"), kayitci, editor=Editor("denetim"))
+            sahne = motor.basla()
+            motor.oyna(sahne.secenekler[0])
+            eylem = motor.durum.sahneler[-1].eylem
+            olgu, vaat, akce = len(motor.durum.olgular), len(motor.durum.vaatler), motor.durum.akce
+
+            yeni = motor.yeniden_yaz()
+            self.assertEqual(yeni.no, 2)
+            self.assertEqual(yeni.eylem, eylem)
+            self.assertEqual(len(motor.durum.sahneler), 2)
+            # Eski 2. sahnenin olgu ve vaatleri geri alındı, yenileri eklendi: sayılar aynı
+            self.assertEqual((len(motor.durum.olgular), len(motor.durum.vaatler), motor.durum.akce),
+                             (olgu, vaat, akce))
+            satirlar = [json.loads(s) for s in kayitci.yol.read_text(encoding="utf-8").splitlines()]
+            self.assertIn({"tip": "geri_al", "no": 2}, satirlar)
+
+    def test_acilis_da_yeniden_yazilir_ve_bossa_hata(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("son"))
+        with self.assertRaises(RuntimeError):
+            motor.yeniden_yaz()
+        motor.basla()
+        self.assertEqual(motor.yeniden_yaz().no, 1)
+        self.assertEqual(len(motor.durum.sahneler), 1)
+
+
+class YazarSecenegiTesti(unittest.TestCase):
+    def test_dusunme_ayari(self):
+        import os
+        from hikaye.llm import GeminiLLM, llm_olustur
+        eski = os.environ.get("GEMINI_API_KEY")
+        os.environ["GEMINI_API_KEY"] = "test-anahtari"        # istemci kurulurken ağa çıkılmaz
+        try:
+            hizli = llm_olustur("gemini", yazar="hizli")
+            dusunen = llm_olustur("gemini", yazar="dusunen")
+            guclu = llm_olustur("gemini", yazar="guclu")
+            self.assertEqual(hizli._dusunme_ayari().thinking_budget, 0)
+            self.assertEqual(dusunen._dusunme_ayari().thinking_budget, 1024)
+            self.assertEqual(guclu.model, "gemini-3.8-flash")
+            self.assertIsNone(guclu._dusunme_ayari())               # 3.x kendi varsayılanıyla düşünür
+            self.assertIsNone(GeminiLLM("gemini-2.5-pro", dusunme=0)._dusunme_ayari())
+        finally:
+            if eski is None:
+                os.environ.pop("GEMINI_API_KEY", None)
+            else:
+                os.environ["GEMINI_API_KEY"] = eski
+
+
 class EnvanterTesti(unittest.TestCase):
     def test_esya_ve_akce_islenir(self):
         from hikaye.durum import Durum

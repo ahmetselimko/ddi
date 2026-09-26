@@ -59,27 +59,46 @@ KURALLAR:
     tepki verir.
 14. Yalnızca aşağıdaki biçimde JSON döndür, başka hiçbir şey yazma.
 
-{{
+{bicim}"""
+
+_AKIS_ACIKLAMASI = """akis: sahne baştan sona bu parçalardan oluşur, toplam 150-260 kelime. Her konuşma ayrı bir replik
+parçasıdır; konuşmayı anlatım parçasının içine gömme. Replik yalnızca sahnede O ANDA bir karakterin
+söylediği sözdür; hatırlanan ya da başkasından aktarılan sözleri anlatımın içinde ver."""
+
+# Editör açıkken: yazar yalnızca sahneyi ve seçenekleri yazar. Mekân, zaman, sahnedeki
+# karakterler, eşya değişimi ve olguları editör çıkarır; tanışmayı kod belirler.
+# Form doldurma yükü azaldıkça yazının kendisine daha çok dikkat kalır.
+_BICIM_HAFIF = """{
   "akis": [
-    {{"anlatim": "anlatım paragrafı"}},
-    {{"konusan": "karakter id'si", "replik": "söylenen söz, tırnaksız"}},
-    {{"anlatim": "anlatım paragrafı"}}
+    {"anlatim": "anlatım paragrafı"},
+    {"konusan": "karakter id'si", "replik": "söylenen söz, tırnaksız"},
+    {"anlatim": "anlatım paragrafı"}
+  ],
+  "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
+}
+
+""" + _AKIS_ACIKLAMASI
+
+# Editör kapalıyken: sahnenin bilgilerini yazar kendisi bildirir.
+_BICIM_TAM = """{
+  "akis": [
+    {"anlatim": "anlatım paragrafı"},
+    {"konusan": "karakter id'si", "replik": "söylenen söz, tırnaksız"},
+    {"anlatim": "anlatım paragrafı"}
   ],
   "mekan": "sahnenin geçtiği mekânın id'si (yukarıdaki listeden)",
   "zaman": "sahne sonundaki gün ve vakit, ör. \\"1. gün, gece\\"",
   "karakterler": ["sahnede bulunan karakterlerin id'leri"],
   "tanisilan": ["bu sahnede oyuncunun ADINI öğrendiği karakterlerin id'leri (kendini tanıttı ya da biri onu adıyla andı)"],
-  "yeni_olgular": [{{"metin": "bu sahnede kesinleşen yeni bir gerçek", "ilgili": ["karakter/mekân id'leri"]}}],
-  "envanter": {{"eklenen": ["oyuncunun eline geçen eşyalar"], "cikan": ["elinden çıkan eşyalar"], "akce": 0}},
+  "yeni_olgular": [{"metin": "bu sahnede kesinleşen yeni bir gerçek", "ilgili": ["karakter/mekân id'leri"]}],
+  "envanter": {"eklenen": ["oyuncunun eline geçen eşyalar"], "cikan": ["elinden çıkan eşyalar"], "akce": 0},
   "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
-}}
+}
 
 envanter: bu sahnede oyuncunun üzerindekilerde olan değişiklik. akce: akçe değişimi (ödediyse eksi,
 aldıysa artı). Değişiklik yoksa boş listeler ve 0.
 
-akis: sahne baştan sona bu parçalardan oluşur, toplam 120-220 kelime. Her konuşma ayrı bir replik
-parçasıdır; konuşmayı anlatım parçasının içine gömme. Replik yalnızca sahnede O ANDA bir karakterin
-söylediği sözdür; hatırlanan ya da başkasından aktarılan sözleri anlatımın içinde ver.
+""" + _AKIS_ACIKLAMASI + """
 
 yeni_olgular: bu sahnede hikâyede KESİNLEŞEN kalıcı gerçekler (0-3 adet): biri bir sır açıkladı,
 bir eşya el değiştirdi, bir yer keşfedildi, bir söz verildi. Tahmin, ima ya da şüphe yazma
@@ -107,8 +126,10 @@ def _taninan_satiri(dunya: Dunya, taninan) -> str:
     return ", ".join(adlar) if adlar else "(henüz kimse)"
 
 
-def sistem_istemi(dunya: Dunya) -> str:
+def sistem_istemi(dunya: Dunya, hafif: bool = False) -> str:
+    """hafif: editör açıkken yazar yalnızca sahneyi ve seçenekleri yazar."""
     return _SISTEM.format(
+        bicim=_BICIM_HAFIF if hafif else _BICIM_TAM,
         ad=dunya.ad,
         ton=dunya.ton,
         oyuncu=dunya.oyuncu,
@@ -228,12 +249,17 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     if len(durum.sahneler) >= 2:
         bolumler.append(f"[ÖNCEKİ SAHNE]\n{sahne_metni(durum.sahneler[-2], dunya)}")
     secenekler = "\n".join(f"- {s}" for s in sahne.secenekler)
+    eylem = f"Oyuncunun eylemi: {sahne.eylem}\n" if sahne.eylem else "(Açılış sahnesi)\n"
     bolumler.append(
-        f"[OYUNCUNUN ADINI BİLDİĞİ KARAKTERLER] {_taninan_satiri(dunya, durum.taninan)}\n\n"
-        f"[DENETLENECEK SAHNE]\n{sahne_metni(sahne, dunya)}\n\nSunulan seçenekler:\n{secenekler}"
+        f"[OYUNCUNUN ADINI BİLDİĞİ KARAKTERLER] {_taninan_satiri(dunya, durum.taninan)}\n"
+        f"[SAHNEDEN ÖNCE] mekân: {dunya.mekanlar[durum.mekan].ad} ({durum.mekan}) · zaman: {durum.zaman}\n\n"
+        f"[DENETLENECEK SAHNE — {sahne.no}. sahne]\n{eylem}{sahne.metin}\n\nSunulan seçenekler:\n{secenekler}"
     )
 
     gorevler = [
+        "0. sahne_bilgisi: sahnenin SONUNDA oyuncu hangi mekânda (id), gün ve vakit ne (\"1. gün, gece\" "
+        "gibi; zaman değişmediyse öncekini yaz), sahnede hangi karakterler bulunuyor (id'ler), oyuncunun "
+        "üzerindekilerde ne değişti (eline geçen, elinden çıkan eşyalar; akçe değişimi: ödediyse eksi).",
         "1. iddialar: Sahnedeki somut ve kalıcı iddiaları çıkar: görünüş, sayılar, akrabalık, "
         "sahiplik, kim neyi biliyor, kesinleşen olaylar. Yalnızca ileride çelişilirse okurun fark "
         "edeceği, hikâyeye etkisi olan gerçekler. En fazla 6, bunlardan en fazla 3'ü yeni. "
@@ -313,6 +339,8 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     bolumler.append("GÖREVLER:\n" + "\n".join(gorevler))
     bolumler.append(
         "JSON BİÇİMİ:\n{\n"
+        '  "sahne_bilgisi": {"mekan": "mekân id\'si", "zaman": "gün ve vakit", "karakterler": ["id"], '
+        '"envanter": {"eklenen": [], "cikan": [], "akce": 0}},\n'
         '  "iddialar": [{"metin": "iddia", "tur": "olay", "durum": "yeni, biliniyor ya da celisiyor", '
         '"olgu": "ilgili olgu ya da kural id\'si veya null", "ilgili": ["karakter/mekân id\'leri"]}],\n'
         '  "vaatler": {"acilan": ["yeni soru"], "ilerleyen": [{"id": "v1", "kanit": "..."}], '

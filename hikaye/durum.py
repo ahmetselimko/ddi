@@ -3,6 +3,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .getirim import kucult, ortusme
+
 
 @dataclass
 class Replik:
@@ -104,3 +106,40 @@ class Durum:
 
     def kaydet(self, yol: Path) -> None:
         yol.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _ayni_esya(a: str, b: str) -> bool:
+    return kucult(a).strip() == kucult(b).strip() or (ortusme(a, b) >= 0.6 and ortusme(b, a) >= 0.6)
+
+
+def envanter_oku(ham) -> dict:
+    """Model çıktısındaki {"eklenen", "cikan", "akce"} alanını güvenli biçimde okur."""
+    ham = ham if isinstance(ham, dict) else {}
+    liste = lambda anahtar: [str(x).strip() for x in ham.get(anahtar) or [] if str(x).strip()]  # noqa: E731
+    try:
+        akce = int(ham.get("akce") or 0)
+    except (TypeError, ValueError):
+        akce = 0
+    return {"eklenen": liste("eklenen"), "cikan": liste("cikan"), "akce": akce}
+
+
+def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:
+    """Eşya ve akçe değişimini oyuncuya işler. Olmayan eşyanın elden çıkması ya da
+    yetmeyen akçenin ödenmesi uygulanmaz, uyarı olarak döner."""
+    uyarilar = []
+    for esya in envanter["cikan"]:
+        eslesen = next((x for x in durum.esyalar if _ayni_esya(x, esya)), None)
+        if eslesen:
+            durum.esyalar.remove(eslesen)
+        else:
+            uyarilar.append(f"oyuncunun üzerinde olmayan bir eşya kullanıldı ya da elden çıktı: {esya!r}")
+    for esya in envanter["eklenen"]:
+        if not any(_ayni_esya(x, esya) for x in durum.esyalar):
+            durum.esyalar.append(esya)
+    if envanter["akce"]:
+        yeni = durum.akce + envanter["akce"]
+        if yeni < 0:
+            uyarilar.append(f"oyuncunun {durum.akce} akçesi var, {-envanter['akce']} akçe ödeyemez")
+        else:
+            durum.akce = yeni
+    return uyarilar
