@@ -107,10 +107,6 @@ class HttpTesti(unittest.TestCase):
         self.assertEqual(kod, 400)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class KayitliOyunTesti(unittest.TestCase):
     """Her turdan sonra otomatik kayıt; sunucu yeniden açılsa da kaldığı yerden devam."""
 
@@ -162,3 +158,7 @@ class KayitliOyunTesti(unittest.TestCase):
             o.devam("../../gizli")                                         # yol oyunu yok
         with self.assertRaises(ValueError):
             o.devam("olmayan_kayit")
+
+
+if __name__ == "__main__":
+    unittest.main()
