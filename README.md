@@ -146,19 +146,25 @@ adresini `YEREL_LLM_URL`'e yazmak yeterli.
 
 ## Kendi dünyanı kur
 
-Web arayüzünde **Dünya kur** düğmesi (ya da "Yeni oyun" penceresindeki "+ Kendi dünyanı kur")
-8 adımlık bir sihirbaz açar: tür ve ton, dünyanın kuralları (neler YOK), oyuncu ve eşyaları,
-hikâyenin kalbindeki sorular, mekânlar, karakterler (görünüş, kişilik, konuşma, imza sözleri,
-sır, bulunduğu yer), kesin gerçekler ve açılış sahnesi. Önizlemeden sonra dünya
-`dunyalar/` altına kaydedilir ve listede kalır.
+Web arayüzünde **Dünya kur** (ya da "Yeni oyun" penceresinde "+ Kendi dünyanı kur"):
 
-Dünyayı **oyuncu yazar**; yapay zekâ hiçbir alanı doldurmaz. Oyunun ihtiyaç duyduğu teknik
-alanları [hikaye/dunya_kurucu.py](hikaye/dunya_kurucu.py) cevaplardan kurallarla çıkarır:
-kimlikler, metinde anılma kalıpları (karakterde unvansız özel ad, mekânda "kule*" gibi kök
-kalıbı; "göl" gibi kısa köklerde "gölge"yi yakalamasın diye tam çekimler), gerçeklerin hangi
-karakter ve mekânla ilgili olduğu. Karakter sırları kanona girer; büyük sorular oyun başında
-açık vaat olur; para birimi dünyaya aittir (akçe, kredi...). Yarım kalan cevaplar tarayıcıda
-saklanır.
+1. **Fikir:** Tür ve hikâyeyi birkaç cümleyle yazarsın; istersen kim olduğunu, mutlaka
+   olmasını ve olmamasını istediklerini de eklersin.
+2. **Taslak:** Model bu fikirden tam bir dünya kurar: mekânlar, karakterler (konuşma
+   biçimleri ve imza sözleriyle), somut gerçekler, kurallar, para birimi, açılış. Senin
+   yazdıklarını değiştirmez, yalnızca genişletir. Bir istek, dünya başına ~1 sent.
+3. **Önizleme:** Kaydet, **Yeniden oluştur** ya da **Düzenle**. Düzenle, her alanı tek tek
+   değiştirebileceğin ayrıntılı sihirbazı taslakla dolu açar. Ayrıntılı sihirbaz, modeli hiç
+   kullanmadan boş da başlatılabilir ("Ayrıntılı kur").
+
+Dünyayı oyun sırasında anlık uydurmak yerine başta toplu kurmak, editörün somut bir
+kanona karşı denetim yapabilmesi için. Oyunun ihtiyaç duyduğu teknik alanları
+[hikaye/dunya_kurucu.py](hikaye/dunya_kurucu.py) kurallarla çıkarır: kimlikler, metinde anılma
+kalıpları (karakterde unvansız özel ad, mekânda "kule*" gibi kök kalıbı; "göl" gibi kısa
+köklerde "gölge"yi yakalamasın diye tam çekimler), gerçeklerin hangi karakter ve mekânla
+ilgili olduğu. Karakter sırları kanona girer; büyük sorular oyun başında açık vaat olur.
+Kaydedilen dünya `dunyalar/` altında düz bir YAML dosyasıdır; listede kalır, elle de
+düzenlenebilir. Yarım kalan fikir ve taslak tarayıcıda saklanır.
 
 ## Dünya dosyası
 
