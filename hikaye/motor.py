@@ -51,12 +51,12 @@ def _esya_adi(sozcuk: str) -> str:
     return sozcuk
 
 
-def _akce_miktari(metin: str) -> int | None:
-    """"50 akçe", "on beş akçe" gibi ifadelerdeki en büyük miktar."""
+def _akce_miktari(metin: str, birim: str = "akçe") -> int | None:
+    """"50 akçe", "on beş kredi" gibi ifadelerdeki en büyük miktar (birim dünyadan gelir)."""
     kelimeler_ = kucult(metin).replace("'", " ").split()
     en_buyuk = None
     for i, k in enumerate(kelimeler_):
-        if not k.startswith("akçe") and not k.startswith("coin"):
+        if not k.startswith(kucult(birim)[:4]) and not k.startswith("coin"):
             continue
         toplam, j = 0, i - 1
         while j >= 0 and (kelimeler_[j].isdigit() or kelimeler_[j] in _SAYILAR):
@@ -67,7 +67,7 @@ def _akce_miktari(metin: str) -> int | None:
     return en_buyuk
 
 
-def eylem_denetimi(eylem: str | None, durum: Durum) -> list[str]:
+def eylem_denetimi(eylem: str | None, durum: Durum, birim: str = "akçe") -> list[str]:
     """Oyuncunun eylemi, üzerinde olmayan bir eşyayı ya da parasını aşan bir ödemeyi
     içeriyor mu? Bulunanlar yazara kesin not olarak gider."""
     if not eylem:
@@ -88,9 +88,9 @@ def eylem_denetimi(eylem: str | None, durum: Durum) -> list[str]:
         if esya not in gorulen and ortusme(esya, eylem) >= 0.5 and not any(ortusme(esya, x) >= 0.5 for x in durum.esyalar):
             gorulen.add(esya)
             notlar.append(f"\"{esya}\" artık oyuncuda DEĞİL (daha önce elinden çıktı). Onu kullanamaz.")
-    miktar = _akce_miktari(eylem)
+    miktar = _akce_miktari(eylem, birim)
     if miktar and miktar > durum.akce and _VERME.search(kucuk):
-        notlar.append(f"Oyuncunun yalnızca {durum.akce} akçesi var; {miktar} akçe veremez. Teklif ederse "
+        notlar.append(f"Oyuncunun yalnızca {durum.akce} {birim} parası var; {miktar} {birim} veremez. Teklif ederse "
                       "elindekinin yetmediği anlaşılır.")
     return notlar
 
@@ -371,6 +371,8 @@ class Motor:
         self.deneme = deneme
         self.durum = Durum(mekan=dunya.baslangic_mekan, zaman=dunya.baslangic_zamani,
                            esyalar=list(dunya.oyuncu_esyalar), akce=dunya.oyuncu_akce)
+        for soru in dunya.vaatler:              # hikâyenin kalbindeki sorular baştan açık
+            self.durum.vaat_ac(soru, 0)
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
         self._tur_oncesi: tuple[Durum, str | None] | None = None   # "yeniden yaz" için
@@ -408,7 +410,7 @@ class Motor:
         baglam = self.bellek.baglam(self.dunya, self.durum, eylem)
         ek = self.editor.yazara_bolumler(self.dunya, self.durum) if self.editor else []
         onceki_eylemler = [s.eylem for s in self.durum.sahneler if s.eylem]
-        eylem_notlari = eylem_denetimi(eylem, self.durum)
+        eylem_notlari = eylem_denetimi(eylem, self.durum, self.dunya.para_birimi)
         sistem = istem.sistem_istemi(self.dunya, hafif=hafif)
         kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek, zaman=self.durum.zaman,
                                        taninan=self.durum.taninan, eylemler=onceki_eylemler,

@@ -57,7 +57,7 @@ KURALLAR:
     oyuncunun zaten yaptığı ya da sorduğu şeyi tekrar önerme. Oyuncuya bir şey söyleten seçenekte ne
     söyleyeceği seçeneğin içinde açıkça yazsın ve yalnızca oyuncunun bildiklerinden oluşsun. Seçenekler oyuncunun
     ÜZERİNDEKİLERLE yapılabilir olsun (ipi yoksa "iple tırman" önerme; "ip bulmaya çalış" önerilebilir). İçeriği belirsiz "... açıkla", "... anlat" seçenekleri yazma. "... gözlemle" gibi edilgen seçenekler yazma.
-13. Oyuncu yalnızca ÜZERİNDEKİLERİ kullanabilir ve üzerindekinden fazla akçe veremez. Üzerinde olmayan bir eşyayı (ör. silah) kullanmaya
+13. Oyuncu yalnızca ÜZERİNDEKİLERİ kullanabilir ve üzerindekinden fazla para veremez. Üzerinde olmayan bir eşyayı (ör. silah) kullanmaya
     çalışırsa eli boş kalır: bunu hikâyede göster, o eşya ortaya çıkmaz. Dünya kurallarına aykırı bir şey
     yapmaya çalışırsa bunun neden olmadığını göster. Büyük olayların sonucu olur: başkaları duyar, gelir,
     tepki verir.
@@ -99,7 +99,7 @@ _BICIM_TAM = """{
   "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
 }
 
-envanter: bu sahnede oyuncunun üzerindekilerde olan değişiklik. akce: akçe değişimi (ödediyse eksi,
+envanter: bu sahnede oyuncunun üzerindekilerde olan değişiklik. akce: para değişimi (ödediyse eksi,
 aldıysa artı). Değişiklik yoksa boş listeler ve 0.
 
 """ + _AKIS_ACIKLAMASI + """
@@ -143,8 +143,8 @@ def sistem_istemi(dunya: Dunya, hafif: bool = False) -> str:
     )
 
 
-def _uzerindekiler(esyalar, akce: int) -> str:
-    return f"{', '.join(esyalar) or 'hiçbir eşya'} · {akce} akçe"
+def _uzerindekiler(esyalar, akce: int, birim: str = "akçe") -> str:
+    return f"{', '.join(esyalar) or 'hiçbir eşya'} · {akce} {birim}"
 
 
 def karakter_son_durumlari(dunya: Dunya, durum: Durum, karakterler, once: int | None = None,
@@ -199,7 +199,7 @@ def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None =
                         + "\n".join(f"- {o}" for o in baglam.odak_olgular))
     bolumler.append(f"[ŞU AN] {zaman or dunya.baslangic_zamani}\n"
                     f"[OYUNCUNUN ADINI BİLDİĞİ KARAKTERLER] {_taninan_satiri(dunya, taninan)}\n"
-                    f"[OYUNCUNUN ÜZERİNDEKİLER] {_uzerindekiler(esyalar, akce)}")
+                    f"[OYUNCUNUN ÜZERİNDEKİLER] {_uzerindekiler(esyalar, akce, dunya.para_birimi)}")
     bolumler.extend(ek or [])
 
     if eylem is None:
@@ -239,7 +239,7 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         + "\n".join(f"- [{o.id}] {o.metin}" for o in dunya.olgular)
         + ("\nDünya kuralları (asla çiğnenmez):\n" + "\n".join(f"- [{k.id}] {k.metin}" for k in dunya.kurallar)
            if dunya.kurallar else ""),
-        f"[OYUNCUNUN ÜZERİNDEKİLER — bu sahneden önce] {_uzerindekiler(durum.esyalar, durum.akce)}",
+        f"[OYUNCUNUN ÜZERİNDEKİLER — bu sahneden önce] {_uzerindekiler(durum.esyalar, durum.akce, dunya.para_birimi)}",
     ]
     if oyun_olgulari:
         bolumler.append("[OYUNDA KESİNLEŞEN OLGULAR]\n"
@@ -277,7 +277,7 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     gorevler = [
         "0. sahne_bilgisi: sahnenin SONUNDA oyuncu hangi mekânda (id), gün ve vakit ne (\"1. gün, gece\" "
         "gibi; zaman değişmediyse öncekini yaz), sahnede hangi karakterler bulunuyor (id'ler), oyuncunun "
-        "üzerindekilerde ne değişti (eline geçen, elinden çıkan eşyalar; akçe değişimi: ödediyse eksi).",
+        "üzerindekilerde ne değişti (eline geçen, elinden çıkan eşyalar; para değişimi: ödediyse eksi).",
         "1. iddialar: Sahnedeki somut ve kalıcı iddiaları çıkar: görünüş, sayılar, akrabalık, "
         "sahiplik, kim neyi biliyor, kesinleşen olaylar. Yalnızca ileride çelişilirse okurun fark "
         "edeceği, hikâyeye etkisi olan gerçekler. En fazla 6, bunlardan en fazla 3'ü yeni. "

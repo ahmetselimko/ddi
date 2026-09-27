@@ -148,6 +148,32 @@
     background: var(--kirmizi); color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: var(--golge); z-index: 30; font-size: 14px;
   }
   #bildirim[hidden] { display: none; }
+  #bildirim.iyi { background: var(--yesil); }
+
+  /* Dünya kurucu */
+  .perde {
+    position: fixed; inset: 0; background: rgba(30,20,12,.55); display: flex; align-items: center;
+    justify-content: center; padding: 16px; z-index: 20;
+  }
+  .perde[hidden] { display: none; }
+  .pencere.genis { max-width: 640px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+  .adim-ust { display: flex; align-items: baseline; gap: 12px; }
+  .adim-ust h2 { font: 600 22px/1.2 Georgia, serif; margin: 0; flex: 1; }
+  .adim-sayac { color: var(--soluk); font-size: 13px; white-space: nowrap; }
+  .adim-ipucu { color: var(--soluk); font-size: 13.5px; margin: 6px 0 14px; }
+  .adim-icerik { overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; }
+  .adim-icerik input[type=text], .adim-icerik input[type=number], .adim-icerik textarea, .adim-icerik select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--cizgi); background: var(--zemin);
+  }
+  .adim-icerik textarea { resize: vertical; font: inherit; }
+  .adim-icerik .onay { display: flex; align-items: center; gap: 8px; }
+  .adim-icerik .onay label { margin: 0; font-weight: 400; }
+  .kalem { border: 1px solid var(--cizgi); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
+  .kalem legend { font-size: 12px; font-weight: 600; color: var(--vurgu); padding: 0 4px; }
+  .onizleme h4 { margin: 14px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--soluk); }
+  .onizleme p, .onizleme li { margin: 2px 0; font-size: 14px; }
+  .bosluk { flex: 1; }
+  .baglanti { border: 0; background: none; color: var(--vurgu); padding: 0; font-size: 12.5px; text-decoration: underline; }
 
   /* Telefon */
   @media (max-width: 900px) {
@@ -163,6 +189,7 @@
   <div class="logo" id="baslik">Tuzhan</div>
   <div class="konum" id="konum"></div>
   <button class="ikon-dugme" id="panel-dugme" aria-pressed="false" title="Editörün bulgularını göster">Editör</button>
+  <button class="ikon-dugme" id="kur-dugme" title="Kendi dünyanı kur">Dünya kur</button>
   <button class="ikon-dugme" id="yeni-dugme">Yeni oyun</button>
   <button class="ikon-dugme" id="tema-dugme" title="Tema">◐</button>
 </header>
@@ -204,6 +231,7 @@
     <div class="alan">
       <label for="dunya-sec">Dünya</label>
       <select id="dunya-sec"></select>
+      <small><button type="button" class="baglanti" id="kur-baglanti">+ Kendi dünyanı kur</button></small>
     </div>
     <div class="alan">
       <label for="bellek-sec">Hafıza</label>
@@ -223,6 +251,23 @@
     <div class="dugmeler">
       <button type="button" class="ikon-dugme" id="vazgec">Vazgeç</button>
       <button type="submit" class="ana-dugme">Başla</button>
+    </div>
+  </form>
+</div>
+
+<div id="kurucu" class="perde" hidden>
+  <form class="pencere genis" id="kurucu-form" novalidate>
+    <div class="adim-ust">
+      <h2 id="adim-baslik"></h2>
+      <span class="adim-sayac" id="adim-sayac"></span>
+    </div>
+    <p class="adim-ipucu" id="adim-ipucu"></p>
+    <div class="adim-icerik" id="adim-icerik"></div>
+    <div class="dugmeler">
+      <button type="button" class="ikon-dugme" id="kur-kapat">Kapat</button>
+      <span class="bosluk"></span>
+      <button type="button" class="ikon-dugme" id="kur-geri">Geri</button>
+      <button type="submit" class="ana-dugme" id="kur-ileri">İleri</button>
     </div>
   </form>
 </div>
@@ -265,12 +310,13 @@ async function api(yol, govde) {
   return veri;
 }
 
-function bildir(mesaj) {
+function bildir(mesaj, iyi = false, sure = 7000) {
   const b = $("#bildirim");
   b.textContent = mesaj;
+  b.classList.toggle("iyi", iyi);
   b.hidden = false;
   clearTimeout(bildir.zaman);
-  bildir.zaman = setTimeout(() => (b.hidden = true), 7000);
+  bildir.zaman = setTimeout(() => (b.hidden = true), sure);
 }
 
 function mesgulOl(evet) {
@@ -367,7 +413,7 @@ function paneliCiz() {
       ust: x.metin, alt: `${x.yas} sahnedir açık · ${x.ilerleme} kez ilerledi` })), "mavi", "Açık vaat yok."));
     ic.append(liste("Çözülenler", v.cozulen_vaatler.map((x) => ({ ust: x.metin, alt: `${x.sahne}. sahnede çözüldü` })), "yesil", "Henüz yok."));
   } else {
-    ic.append(liste("Üzerindekiler", [`${(v.esyalar || []).join(", ") || "hiçbir eşya"} · ${v.akce ?? 0} akçe`], ""));
+    ic.append(liste("Üzerindekiler", [`${(v.esyalar || []).join(", ") || "hiçbir eşya"} · ${v.akce ?? 0} ${v.para_birimi || "akçe"}`], ""));
     ic.append(liste("Adını bildiğin karakterler", v.taninan, "", "Henüz kimseyle tanışmadın."));
     ic.append(liste("Karakter değişimleri", v.degisimler, "", "Henüz yok."));
     ic.append(liste("Oyunda kesinleşenler (son 12)", [...v.olgular].reverse(), "", "Henüz yok."));
@@ -481,7 +527,7 @@ async function basla() {
   panelAc(localStorageOku("panel") === "acik");
   try {
     const a = await api("/api/ayarlar");
-    secenekDoldur($("#dunya-sec"), a.dunyalar, a.varsayilan.dunya);
+    dunyaListesiDoldur(a, a.varsayilan.dunya);
     secenekDoldur($("#bellek-sec"), a.bellekler, a.varsayilan.bellek, ACIKLAMA.bellek, $("#bellek-aciklama"));
     secenekDoldur($("#editor-sec"), a.editorler, a.varsayilan.editor, ACIKLAMA.editor, $("#editor-aciklama"));
     ACIKLAMA.yazar = a.yazarlar || {};
@@ -537,10 +583,233 @@ document.querySelectorAll(".sekme").forEach((s) => s.addEventListener("click", (
   paneliCiz();
 }));
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || !$("#baslangic").hidden) return;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) || !$("#baslangic").hidden || !$("#kurucu").hidden) return;
   const n = Number(e.key);
   if (n >= 1 && n <= durum.secenekler.length) oyna(durum.secenekler[n - 1]);
 });
+
+function dunyaListesiDoldur(a, secili) {
+  const secim = $("#dunya-sec");
+  secim.replaceChildren(...a.dunyalar.map((d) => {
+    const o = el("option", "", (a.dunya_adlari || {})[d] || d);
+    o.value = d;
+    return o;
+  }));
+  secim.value = a.dunyalar.includes(secili) ? secili : a.varsayilan.dunya;
+}
+
+/* ── Dünya kurucu: oyuncu kendi dünyasını yazar; yapay zekâ hiçbir alanı doldurmaz ── */
+const TURLER = ["Fantastik", "Bilimkurgu", "Tarihî", "Polisiye", "Korku", "Günümüz", "Masal", "Diğer"];
+const bosKarakter = () => ({ ad: "", kisa_ad: "", adsiz: false, gorunus: "", gorunen_ad: "", kisilik: "",
+                            konusma: "", imza: "", ornek: "", sir: "", yer: "" });
+const bosTaslak = () => ({
+  ad: "", tur: "Fantastik", ton: "", donem: "", yoklar: "", para_birimi: "akçe",
+  oyuncu: { kim: "", neden: "", esyalar: "", para: 10 }, sir: "",
+  mekanlar: [{ ad: "", tanim: "" }], karakterler: [bosKarakter()], gercekler: "",
+  acilis: { mekan: "", zaman: "1. gün, sabah", metin: "" },
+});
+let taslak = null;
+let adim = 0;
+let alanNo = 0;
+
+function taslakYaz() { localStorageYaz("dunya_taslak", JSON.stringify(taslak)); }
+function taslakOku() { try { return JSON.parse(localStorageOku("dunya_taslak") || "null"); } catch { return null; } }
+
+function alan(kutu, nesne, anahtar, etiket, s = {}) {
+  const d = el("div", s.tur === "onay" ? "alan onay" : "alan");
+  const id = `kurucu-${alanNo++}`;
+  const l = el("label", "", etiket + (s.gerekli ? " *" : ""));
+  l.htmlFor = id;
+  let g;
+  if (s.tur === "uzun") { g = el("textarea"); g.rows = s.satir || 3; }
+  else if (s.tur === "secim") {
+    g = el("select");
+    for (const o of s.secenekler) { const op = el("option", "", o || "— seç —"); op.value = o; g.append(op); }
+  } else { g = el("input"); g.type = s.tur === "sayi" ? "number" : s.tur === "onay" ? "checkbox" : "text"; }
+  g.id = id;
+  if (s.tur === "onay") g.checked = !!nesne[anahtar]; else g.value = nesne[anahtar] ?? "";
+  if (s.yer) g.placeholder = s.yer;
+  g.addEventListener(s.tur === "onay" || s.tur === "secim" ? "change" : "input", () => {
+    nesne[anahtar] = s.tur === "onay" ? g.checked : s.tur === "sayi" ? Number(g.value || 0) : g.value;
+    taslakYaz();
+  });
+  if (s.tur === "onay") d.append(g, l); else d.append(l, g);
+  if (s.aciklama) d.append(el("small", "", s.aciklama));
+  kutu.append(d);
+}
+
+function listeCiz(kutu, liste, tekil, alanlar, yeni) {
+  liste.forEach((oge, i) => {
+    const kart = el("fieldset", "kalem");
+    kart.append(el("legend", "", `${tekil} ${i + 1}`));
+    alanlar(kart, oge);
+    if (liste.length > 1) {
+      const sil = el("button", "ikon-dugme", "Kaldır");
+      sil.type = "button";
+      sil.onclick = () => { liste.splice(i, 1); taslakYaz(); adimCiz(); };
+      kart.append(sil);
+    }
+    kutu.append(kart);
+  });
+  const ekle = el("button", "ikon-dugme", `+ ${tekil} ekle`);
+  ekle.type = "button";
+  ekle.onclick = () => { liste.push(yeni()); taslakYaz(); adimCiz(); };
+  kutu.append(ekle);
+}
+
+const mekanAdlari = () => ["", ...taslak.mekanlar.map((m) => m.ad.trim()).filter(Boolean)];
+
+const ADIMLAR = [
+  { baslik: "Tür ve ton",
+    ipucu: "Dünyanın adı ve havası. Ton, anlatıcının sesini belirler.",
+    ciz: (k) => {
+      alan(k, taslak, "ad", "Dünyanın adı", { gerekli: true, yer: "ör. Kızıl Liman, Yedinci Koloni" });
+      alan(k, taslak, "tur", "Tür", { tur: "secim", secenekler: TURLER });
+      alan(k, taslak, "ton", "Ton", { yer: "ör. karanlık ve gizemli; mizah yalnızca küçük anlarda" });
+    },
+    dogrula: () => (taslak.ad.trim() ? null : "Dünyaya bir ad ver.") },
+  { baslik: "Dünyanın kuralları",
+    ipucu: "Model bu kuralları asla çiğnememeye çalışır. Özellikle neyin OLMADIĞINI yazmak, uydurmayı önler.",
+    ciz: (k) => {
+      alan(k, taslak, "donem", "Dönem ve teknoloji", { tur: "uzun", yer: "ör. Orta çağ benzeri; büyü var ama çok nadir ve korkulur" });
+      alan(k, taslak, "yoklar", "Bu dünyada neler YOK? (her satıra bir tane)", { tur: "uzun", satir: 4,
+        yer: "ör.\nAteşli silah yok\nKimse uçamaz\nÖlüler geri dönmez" });
+      alan(k, taslak, "para_birimi", "Para birimi", { yer: "ör. akçe, kredi, altın" });
+    } },
+  { baslik: "Oyuncu",
+    ipucu: "Oyuncunun kim olduğu ve yanında ne taşıdığı. Oyun, oyuncunun yalnızca bunları kullanabilmesini denetler.",
+    ciz: (k) => {
+      alan(k, taslak.oyuncu, "kim", "Oyuncu kim?", { gerekli: true, tur: "uzun", yer: "ör. Kasabaya yeni gelmiş genç bir haritacı" });
+      alan(k, taslak.oyuncu, "neden", "Neden burada?", { tur: "uzun", yer: "ör. Kaybolan bir kervanı bulmak için tutuldu" });
+      alan(k, taslak.oyuncu, "esyalar", "Yanındaki eşyalar (virgülle)", { yer: "ör. pusula, harita defteri, ip" });
+      alan(k, taslak.oyuncu, "para", `Parası (${taslak.para_birimi || "akçe"})`, { tur: "sayi" });
+    },
+    dogrula: () => (taslak.oyuncu.kim.trim() ? null : "Oyuncunun kim olduğunu yaz.") },
+  { baslik: "Hikâyenin kalbi",
+    ipucu: "Cevabı merak edilen büyük sır ya da sorular. Oyun bunları açık vaat olarak takip eder; hepsini birden çözmez.",
+    ciz: (k) => alan(k, taslak, "sir", "Büyük soru(lar) — her satıra bir tane", { tur: "uzun", satir: 4,
+      yer: "ör.\nKayıp kervana ne oldu?\nGöldeki ışıklar nereden geliyor?" }) },
+  { baslik: "Mekânlar",
+    ipucu: "Hikâyenin geçtiği yerler. Tanıma somut ayrıntılar yaz: model bunlarla çelişmemeye çalışır.",
+    ciz: (k) => listeCiz(k, taslak.mekanlar, "Mekân", (kart, m) => {
+      alan(kart, m, "ad", "Adı", { gerekli: true, yer: "ör. Yıkık Gözetleme Kulesi" });
+      alan(kart, m, "tanim", "Tanımı", { tur: "uzun", satir: 2, yer: "ör. Göl kıyısında eski bir kule; merdiveni yarıda çökük" });
+    }, () => ({ ad: "", tanim: "" })),
+    dogrula: () => (taslak.mekanlar.some((m) => m.ad.trim()) ? null : "En az bir mekân ekle.") },
+  { baslik: "Karakterler",
+    ipucu: "Konuşma biçimi ve imza sözleri karakterleri birbirinden ayırır. Sırları kanona girer ama oyuncuya hemen açılmaz.",
+    ciz: (k) => listeCiz(k, taslak.karakterler, "Karakter", (kart, c) => {
+      alan(kart, c, "ad", "Tam adı", { gerekli: true, yer: "ör. Nehir Hanım, Kâtip Selvi" });
+      alan(kart, c, "kisa_ad", "Kısaca anılan adı (isteğe bağlı)", { yer: "ör. Nehir",
+        aciklama: "Boş bırakırsan unvanlar (Hanım, Kâtip...) atılarak bulunur." });
+      alan(kart, c, "adsiz", "Adını kimse bilmiyor", { tur: "onay" });
+      alan(kart, c, "gorunus", "Görünüşü", { tur: "uzun", satir: 2, yer: "ör. İri yapılı, elli yaşlarında; sol elinde üç parmağı eksik" });
+      alan(kart, c, "gorunen_ad", "Tanışmadan önce nasıl anılır?", { yer: "ör. İri yapılı kadın" });
+      alan(kart, c, "kisilik", "Kişiliği", { tur: "uzun", satir: 2, yer: "ör. Sert ve şüpheci ama misafirini korur" });
+      alan(kart, c, "konusma", "Nasıl konuşur?", { tur: "uzun", satir: 2, yer: "ör. Kısa, emir kipinde; soruya soruyla karşılık verir" });
+      alan(kart, c, "imza", "İmza sözleri (virgülle, yalnızca ona ait)", { yer: "ör. evlat" });
+      alan(kart, c, "ornek", "Ağzından çıkabilecek bir cümle", { yer: "ör. Otur, evlat. Önce çorba, sonra soru." });
+      alan(kart, c, "sir", "Sırrı (oyuncu hemen öğrenmez)", { tur: "uzun", satir: 2 });
+      alan(kart, c, "yer", "Genelde bulunduğu mekân", { tur: "secim", secenekler: mekanAdlari() });
+    }, bosKarakter),
+    dogrula: () => (taslak.karakterler.some((c) => c.ad.trim()) ? null : "En az bir karakter ekle.") },
+  { baslik: "Kesin gerçekler",
+    ipucu: "Hikâye boyunca asla değişmeyecek şeyler. Ne kadar somut, o kadar iyi: sayılar, kim neyi biliyor, ne kilitli, kim kimin nesi.",
+    ciz: (k) => alan(k, taslak, "gercekler", "Her satıra bir gerçek", { tur: "uzun", satir: 7,
+      yer: "ör.\nHanda on iki oda var; yedi numara hep kilitli, anahtarı yalnızca Nehir Hanım'da.\nKervanda on bir deve ve altı kişi vardı." }) },
+  { baslik: "Açılış",
+    ipucu: "Oyun buradan başlar. Oyuncunun ilk gördüğünü anlat; ilk sahneyi model bundan devam ettirir.",
+    ciz: (k) => {
+      alan(k, taslak.acilis, "mekan", "Nerede başlıyor?", { tur: "secim", secenekler: mekanAdlari() });
+      alan(k, taslak.acilis, "zaman", "Ne zaman?", { yer: "ör. 1. gün, gün batımı" });
+      alan(k, taslak.acilis, "metin", "Açılış sahnesi", { gerekli: true, tur: "uzun", satir: 5,
+        yer: "ör. Güneş batarken kasabaya varıyorsun. Avlu bomboş; kapıda elinde fenerle biri duruyor." });
+    },
+    dogrula: () => (taslak.acilis.metin.trim() ? null : "Açılış sahnesini yaz.") },
+  { baslik: "Önizleme",
+    ipucu: "Her şey doğruysa kaydet. Kaydedilen dünya 'Yeni oyun' listesinde kalır.",
+    ciz: (k) => onizlemeCiz(k) },
+];
+
+function onizlemeCiz(k) {
+  const o = el("div", "onizleme");
+  const bolum = (baslik, ogeler) => {
+    ogeler = ogeler.filter(Boolean);
+    if (!ogeler.length) return;
+    o.append(el("h4", "", baslik));
+    const ul = el("ul");
+    ogeler.forEach((x) => ul.append(el("li", "", x)));
+    o.append(ul);
+  };
+  const satirlar = (m) => (m || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  o.append(el("p", "", `${taslak.ad || "(adsız dünya)"} · ${taslak.tur}${taslak.ton ? " · " + taslak.ton : ""}`));
+  bolum("Kurallar", [taslak.donem && `Dönem: ${taslak.donem}`, ...satirlar(taslak.yoklar)]);
+  bolum("Oyuncu", [taslak.oyuncu.kim, taslak.oyuncu.neden,
+                   `Yanında: ${taslak.oyuncu.esyalar || "hiçbir şey"} · ${taslak.oyuncu.para || 0} ${taslak.para_birimi || "akçe"}`]);
+  bolum("Büyük sorular", satirlar(taslak.sir));
+  bolum("Mekânlar", taslak.mekanlar.filter((m) => m.ad.trim()).map((m) => `${m.ad}${m.tanim ? " — " + m.tanim : ""}`));
+  bolum("Karakterler", taslak.karakterler.filter((c) => c.ad.trim()).map((c) =>
+    `${c.ad}${c.gorunus ? " — " + c.gorunus : ""}${c.yer ? " (" + c.yer + ")" : ""}`));
+  bolum("Kesin gerçekler", satirlar(taslak.gercekler));
+  bolum("Açılış", [`${taslak.acilis.mekan || "ilk mekân"} · ${taslak.acilis.zaman}`, taslak.acilis.metin]);
+  k.append(o);
+}
+
+function adimCiz() {
+  const a = ADIMLAR[adim];
+  $("#adim-baslik").textContent = a.baslik;
+  $("#adim-sayac").textContent = `${adim + 1} / ${ADIMLAR.length}`;
+  $("#adim-ipucu").textContent = a.ipucu;
+  const icerik = $("#adim-icerik");
+  icerik.replaceChildren();
+  a.ciz(icerik);
+  icerik.scrollTop = 0;
+  $("#kur-geri").disabled = adim === 0;
+  $("#kur-ileri").textContent = adim === ADIMLAR.length - 1 ? "Kaydet" : "İleri";
+}
+
+function kurucuAc() {
+  taslak = taslakOku() || bosTaslak();
+  adim = 0;
+  $("#baslangic").hidden = true;
+  $("#kurucu").hidden = false;
+  adimCiz();
+}
+
+async function dunyayiKaydet() {
+  const ileri = $("#kur-ileri");
+  ileri.disabled = true;
+  try {
+    const sonuc = await api("/api/dunya", taslak);
+    try { localStorage.removeItem("dunya_taslak"); } catch { /* yok say */ }
+    $("#kurucu").hidden = true;
+    dunyaListesiDoldur(await api("/api/ayarlar"), sonuc.dunya);
+    $("#vazgec").hidden = !durum.son;
+    $("#baslangic").hidden = false;
+    const ipucu = sonuc.ipuclari.length ? " İpucu: " + sonuc.ipuclari.join(" ") : "";
+    bildir(`"${sonuc.ad}" kaydedildi. Ayarları seçip Başla'ya bas.${ipucu}`, true, 12000);
+  } catch (e) {
+    bildir(e.message);
+  } finally {
+    ileri.disabled = false;
+  }
+}
+
+$("#kurucu-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const hata = ADIMLAR[adim].dogrula && ADIMLAR[adim].dogrula();
+  if (hata) { bildir(hata); return; }
+  if (adim === ADIMLAR.length - 1) { dunyayiKaydet(); return; }
+  adim += 1;
+  adimCiz();
+});
+$("#kur-geri").addEventListener("click", () => { if (adim > 0) { adim -= 1; adimCiz(); } });
+$("#kur-kapat").addEventListener("click", () => {
+  $("#kurucu").hidden = true;   // taslak saklı kalır; tekrar açınca kaldığın yerden sürer
+  if (!durum.son) $("#baslangic").hidden = false;
+});
+$("#kur-dugme").addEventListener("click", () => { if (!durum.mesgul) kurucuAc(); });
+$("#kur-baglanti").addEventListener("click", kurucuAc);
 
 basla();
 </script>

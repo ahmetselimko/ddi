@@ -23,6 +23,7 @@ from pathlib import Path
 
 from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import dunya_yukle
+from hikaye.dunya_kurucu import KurucuHatasi, cevaplardan_dunya, dunya_kaydet, ipuclari
 from hikaye.editor import MODLAR, Editor
 from hikaye.kayit import Kayitci
 from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
@@ -64,10 +65,12 @@ def _model_adi(llm) -> str:
 class Oturum:
     """Sunucudaki tek oyun. Motor çağrıları saniyeler sürdüğü için kilitle korunur."""
 
-    def __init__(self, llm_turu: str, model: str | None, kayit_klasoru: Path = KOK / "oturumlar"):
+    def __init__(self, llm_turu: str, model: str | None, kayit_klasoru: Path = KOK / "oturumlar",
+                 dunya_klasoru: Path = DUNYA_KLASORU):
         self.llm_turu = llm_turu
         self.model = model
         self.kayit_klasoru = kayit_klasoru
+        self.dunya_klasoru = dunya_klasoru
         self.yazar = "hizli"
         self.motor: Motor | None = None
         self.kilit = threading.Lock()
@@ -75,7 +78,8 @@ class Oturum:
 
     def ayarlar(self) -> dict:
         return {
-            "dunyalar": sorted(p.stem for p in DUNYA_KLASORU.glob("*.yaml")),
+            "dunyalar": sorted(p.stem for p in self.dunya_klasoru.glob("*.yaml")),
+            "dunya_adlari": self._dunya_adlari(),
             "bellekler": list(STRATEJILER),
             "editorler": list(MODLAR),
             "yazarlar": {ad: s["aciklama"] for ad, s in YAZAR_SECENEKLERI.items()},
@@ -90,7 +94,7 @@ class Oturum:
         if bellek not in STRATEJILER or editor not in MODLAR or yazar not in YAZAR_SECENEKLERI:
             raise ValueError("Geçersiz bellek, editör ya da yazar seçimi.")
         with self.kilit:
-            d = dunya_yukle(DUNYA_KLASORU / f"{dunya}.yaml")
+            d = dunya_yukle(self.dunya_klasoru / f"{dunya}.yaml")
             llm = llm_olustur(self.llm_turu, dunya=d, model=self.model, yazar=yazar)
             # Güçlü/düşünen seçenek yalnızca yazarı etkiler; editör ve özet temel modelde kalır
             temel = llm if yazar == "hizli" else llm_olustur(self.llm_turu, dunya=d, yazar="hizli")
@@ -119,6 +123,21 @@ class Oturum:
                 raise ValueError("Önce yeni bir oyun başlat.")
             sahne = self.motor.oyna(eylem)
             return self._yanit(sahne)
+
+    def dunya_kur(self, cevaplar: dict) -> dict:
+        """Oyuncunun sihirbazdaki cevaplarından yeni bir dünya dosyası kurar."""
+        sozluk = cevaplardan_dunya(cevaplar)
+        ad = dunya_kaydet(sozluk, self.dunya_klasoru)
+        return {"dunya": ad, "ad": sozluk["ad"], "ipuclari": ipuclari(sozluk)}
+
+    def _dunya_adlari(self) -> dict:
+        adlar = {}
+        for p in self.dunya_klasoru.glob("*.yaml"):
+            try:
+                adlar[p.stem] = dunya_yukle(p).ad
+            except Exception:
+                adlar[p.stem] = f"{p.stem} (bozuk dosya)"
+        return adlar
 
     def yeniden(self) -> dict:
         """Son sahneyi geri alıp aynı eylemle yeniden yazdırır."""
@@ -180,6 +199,7 @@ class Oturum:
             "taninan": [dunya.karakterler[k].ad for k in d.taninan if k in dunya.karakterler],
             "esyalar": d.esyalar,
             "akce": d.akce,
+            "para_birimi": dunya.para_birimi,
             "acik_vaatler": [{"id": v.id, "metin": v.metin, "yas": son_no - v.acildigi_sahne + 1,
                               "ilerleme": len(v.ilerledigi_sahneler)} for v in d.acik_vaatler],
             "cozulen_vaatler": [{"id": v.id, "metin": v.metin, "sahne": v.cozuldugu_sahne}
@@ -248,8 +268,12 @@ def isleyici_olustur(oturum: Oturum):
                     self._json(200, oturum.oyna(govde.get("eylem", "")))
                 elif self.path == "/api/yeniden":
                     self._json(200, oturum.yeniden())
+                elif self.path == "/api/dunya":
+                    self._json(200, oturum.dunya_kur(govde))
                 else:
                     self._json(404, {"hata": "Bulunamadı."})
+            except KurucuHatasi as e:
+                self._json(400, {"hata": " ".join(e.hatalar), "hatalar": e.hatalar})
             except (ValueError, json.JSONDecodeError) as e:
                 self._json(400, {"hata": str(e)})
             except YanitHatasi as e:

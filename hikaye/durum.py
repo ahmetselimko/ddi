@@ -156,7 +156,7 @@ def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:
     if envanter["akce"]:
         yeni = durum.akce + envanter["akce"]
         if yeni < 0:
-            uyarilar.append(f"oyuncunun {durum.akce} akçesi var, {-envanter['akce']} akçe ödeyemez")
+            uyarilar.append(f"oyuncunun {durum.akce} parası var, {-envanter['akce']} ödeyemez")
         else:
             durum.akce = yeni
     return uyarilar

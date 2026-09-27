@@ -333,8 +333,8 @@ class TestOyunuBulgulariTesti(unittest.TestCase):
         durum = self._durum(elden_cikanlar=["dondurma çubuğu"])
         notlar = eylem_denetimi("Dondurma çubuğumu yiyorum", durum)
         self.assertTrue(any("artık oyuncuda DEĞİL" in n for n in notlar))
-        self.assertTrue(any("15 akçesi var; 50" in n for n in eylem_denetimi("Ona 50 akçe veriyorum", durum)))
-        self.assertTrue(any("15 akçesi var; 20" in n for n in eylem_denetimi("Yirmi akçe teklif et", durum)))
+        self.assertTrue(any("15 akçe parası var; 50" in n for n in eylem_denetimi("Ona 50 akçe veriyorum", durum)))
+        self.assertTrue(any("15 akçe parası var; 20" in n for n in eylem_denetimi("Yirmi akçe teklif et", durum)))
         self.assertEqual(eylem_denetimi("On beş akçe veriyorum", durum), [])     # tam yetiyor
 
     def test_gun_sayisi_ilerler_ve_geri_gitmez(self):

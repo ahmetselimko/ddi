@@ -144,6 +144,22 @@ küçültülür, kesme ekleri atılır, kök olarak ilk 5 harf alınır (F5 kök
 Hocanın GPU'lu makinesinde çalışan bir model `yerel` ile bağlanır: sunucunun
 adresini `YEREL_LLM_URL`'e yazmak yeterli.
 
+## Kendi dünyanı kur
+
+Web arayüzünde **Dünya kur** düğmesi (ya da "Yeni oyun" penceresindeki "+ Kendi dünyanı kur")
+8 adımlık bir sihirbaz açar: tür ve ton, dünyanın kuralları (neler YOK), oyuncu ve eşyaları,
+hikâyenin kalbindeki sorular, mekânlar, karakterler (görünüş, kişilik, konuşma, imza sözleri,
+sır, bulunduğu yer), kesin gerçekler ve açılış sahnesi. Önizlemeden sonra dünya
+`dunyalar/` altına kaydedilir ve listede kalır.
+
+Dünyayı **oyuncu yazar**; yapay zekâ hiçbir alanı doldurmaz. Oyunun ihtiyaç duyduğu teknik
+alanları [hikaye/dunya_kurucu.py](hikaye/dunya_kurucu.py) cevaplardan kurallarla çıkarır:
+kimlikler, metinde anılma kalıpları (karakterde unvansız özel ad, mekânda "kule*" gibi kök
+kalıbı; "göl" gibi kısa köklerde "gölge"yi yakalamasın diye tam çekimler), gerçeklerin hangi
+karakter ve mekânla ilgili olduğu. Karakter sırları kanona girer; büyük sorular oyun başında
+açık vaat olur; para birimi dünyaya aittir (akçe, kredi...). Yarım kalan cevaplar tarayıcıda
+saklanır.
+
 ## Dünya dosyası
 
 [dunyalar/tuzhan.yaml](dunyalar/tuzhan.yaml) örnek dünyadır: 5 mekân, 5 karakter,
@@ -164,6 +180,7 @@ web/index.html       web arayüzü (tek dosya)
 oyun.py              komut satırı
 hikaye/
   dunya.py           dünya kanonu (YAML) ve doğrulama
+  dunya_kurucu.py    oyuncunun cevaplarından dünya dosyası
   durum.py           oynanan sahneler, oyun olguları, özet
   bellek.py          bellek stratejileri
   getirim.py         Türkçe BM25

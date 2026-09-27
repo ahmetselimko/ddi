@@ -84,7 +84,9 @@ class Dunya:
     # Olgular gibi çelişki denetiminde kullanılır, ama her istemde her zaman görünür.
     kurallar: list[Olgu] = field(default_factory=list)
     oyuncu_esyalar: list[str] = field(default_factory=list)
-    oyuncu_akce: int = 0
+    oyuncu_akce: int = 0                  # alan adı tarihsel; birimi para_birimi söyler
+    para_birimi: str = "akçe"
+    vaatler: list[str] = field(default_factory=list)   # oyun başında açık olan büyük sorular
 
     @property
     def acilis(self) -> Olgu:
@@ -157,6 +159,8 @@ def dunya_yukle(yol: str | Path) -> Dunya:
         kurallar=[Olgu(id=f"k{i}", metin=m) for i, m in enumerate(ham.get("kurallar") or [], 1)],
         oyuncu_esyalar=list(ham.get("oyuncu_esyalar") or []),
         oyuncu_akce=int(ham.get("oyuncu_akce") or 0),
+        para_birimi=str(ham.get("para_birimi") or "akçe"),
+        vaatler=[str(v) for v in ham.get("vaatler") or []],
     )
     _dogrula(dunya)
     return dunya
