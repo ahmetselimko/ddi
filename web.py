@@ -18,6 +18,7 @@ import os
 import threading
 import urllib.request
 import webbrowser
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -25,7 +26,7 @@ from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import dunya_yukle
 from hikaye.dunya_kurucu import KurucuHatasi, cevaplardan_dunya, dunya_kaydet, ipuclari, taslak_uret
 from hikaye.editor import MODLAR, Editor
-from hikaye.kayit import Kayitci
+from hikaye.kayit import Kayitci, oyun_kaydet, oyun_oku, oyun_sil, oyunlari_listele
 from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
 from hikaye.motor import ETIKETLI_SATIR, Motor, YanitHatasi
 
@@ -66,12 +67,15 @@ class Oturum:
     """Sunucudaki tek oyun. Motor çağrıları saniyeler sürdüğü için kilitle korunur."""
 
     def __init__(self, llm_turu: str, model: str | None, kayit_klasoru: Path = KOK / "oturumlar",
-                 dunya_klasoru: Path = DUNYA_KLASORU):
+                 dunya_klasoru: Path = DUNYA_KLASORU, oyun_klasoru: Path = KOK / "kayitlar"):
         self.llm_turu = llm_turu
         self.model = model
         self.kayit_klasoru = kayit_klasoru
         self.dunya_klasoru = dunya_klasoru
+        self.oyun_klasoru = oyun_klasoru     # devam edilebilir oyun kayıtları
         self.yazar = "hizli"
+        self.ayar: dict = {}
+        self.kimlik: str | None = None       # oynanan oyunun kayıt kimliği
         self.motor: Motor | None = None
         self.kilit = threading.Lock()
         self.harcama = {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
@@ -88,28 +92,39 @@ class Oturum:
             "oyun_var": self.motor is not None,
         }
 
+    def _motor_kur(self, dunya: str, bellek: str, editor: str, yazar: str,
+                   kayit_yolu: Path | None = None) -> Motor:
+        """Yeni oyun ve kayıttan devam için ortak kurulum. kayit_yolu: devam edilen oyunun
+        tur kayıtları aynı .jsonl dosyasına eklenmeye sürsün diye."""
+        if not (self.dunya_klasoru / f"{dunya}.yaml").exists():
+            raise ValueError(f"Dünya dosyası bulunamadı: {dunya}")
+        if bellek not in STRATEJILER or editor not in MODLAR or yazar not in YAZAR_SECENEKLERI:
+            raise ValueError("Geçersiz bellek, editör ya da yazar seçimi.")
+        d = dunya_yukle(self.dunya_klasoru / f"{dunya}.yaml")
+        llm = llm_olustur(self.llm_turu, dunya=d, model=self.model, yazar=yazar)
+        # Güçlü/düşünen seçenek yalnızca yazarı etkiler; editör ve özet temel modelde kalır
+        temel = llm if yazar == "hizli" else llm_olustur(self.llm_turu, dunya=d, yazar="hizli")
+        editor_modeli, ozet_modeli = os.environ.get("EDITOR_MODEL"), os.environ.get("OZET_MODEL")
+        editor_llm = llm_olustur(self.llm_turu, dunya=d, model=editor_modeli) if editor_modeli else temel
+        ozet_llm = llm_olustur(self.llm_turu, dunya=d, model=ozet_modeli) if ozet_modeli else temel
+        kayitci = Kayitci(self.kayit_klasoru, meta={
+            "dunya": d.ad, "llm": llm.ad, "yazar": yazar, "editor_llm": editor_llm.ad,
+            "ozet_llm": ozet_llm.ad, "bellek": bellek, "editor": editor, "arayuz": "web",
+        }, yol=kayit_yolu)
+        self.yazar = yazar
+        self.ayar = {"dunya": dunya, "bellek": bellek, "editor": editor, "yazar": yazar}
+        return Motor(d, llm, Bellek(bellek), kayitci, editor=Editor(editor),
+                     editor_llm=editor_llm, ozet_llm=ozet_llm)
+
     def yeni(self, dunya: str, bellek: str, editor: str, yazar: str = "hizli") -> dict:
         if dunya not in self.ayarlar()["dunyalar"]:
             raise ValueError(f"Bilinmeyen dünya: {dunya}")
-        if bellek not in STRATEJILER or editor not in MODLAR or yazar not in YAZAR_SECENEKLERI:
-            raise ValueError("Geçersiz bellek, editör ya da yazar seçimi.")
         with self.kilit:
-            d = dunya_yukle(self.dunya_klasoru / f"{dunya}.yaml")
-            llm = llm_olustur(self.llm_turu, dunya=d, model=self.model, yazar=yazar)
-            # Güçlü/düşünen seçenek yalnızca yazarı etkiler; editör ve özet temel modelde kalır
-            temel = llm if yazar == "hizli" else llm_olustur(self.llm_turu, dunya=d, yazar="hizli")
-            editor_modeli, ozet_modeli = os.environ.get("EDITOR_MODEL"), os.environ.get("OZET_MODEL")
-            editor_llm = llm_olustur(self.llm_turu, dunya=d, model=editor_modeli) if editor_modeli else temel
-            ozet_llm = llm_olustur(self.llm_turu, dunya=d, model=ozet_modeli) if ozet_modeli else temel
-            kayitci = Kayitci(self.kayit_klasoru, meta={
-                "dunya": d.ad, "llm": llm.ad, "yazar": yazar, "editor_llm": editor_llm.ad,
-                "ozet_llm": ozet_llm.ad, "bellek": bellek, "editor": editor, "arayuz": "web",
-            })
-            self.yazar = yazar
-            self.motor = Motor(d, llm, Bellek(bellek), kayitci, editor=Editor(editor),
-                               editor_llm=editor_llm, ozet_llm=ozet_llm)
+            self.motor = self._motor_kur(dunya, bellek, editor, yazar)
+            self.kimlik = self.motor.kayitci.kimlik
             self.harcama = {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
             sahne = self.motor.basla()
+            self._kaydet()
             return self._yanit(sahne)
 
     def oyna(self, eylem: str) -> dict:
@@ -122,7 +137,44 @@ class Oturum:
             if self.motor is None:
                 raise ValueError("Önce yeni bir oyun başlat.")
             sahne = self.motor.oyna(eylem)
+            self._kaydet()
             return self._yanit(sahne)
+
+    # ── Kayıtlı oyunlar ──────────────────────────────────────────────────────
+
+    def _kaydet(self) -> None:
+        """Her turdan sonra otomatik: oyun kapansa da kaldığı yerden sürdürülebilir."""
+        oyun_kaydet(self.oyun_klasoru, self.kimlik, {
+            "surum": 1,
+            "kaydedildi": datetime.now().isoformat(timespec="seconds"),
+            "dunya_ad": self.motor.dunya.ad,
+            "ayar": self.ayar,
+            "kayit": self.motor.kayitci.kimlik,
+            "harcama": self.harcama,
+            "oyun": self.motor.kaydedilecek(),
+        })
+
+    def kayitli_oyunlar(self) -> dict:
+        return {"kayitlar": oyunlari_listele(self.oyun_klasoru), "oynanan": self.kimlik}
+
+    def devam(self, kimlik: str) -> dict:
+        """Kayıtlı bir oyunu yükleyip kaldığı sahneden sürdürür."""
+        with self.kilit:
+            veri = oyun_oku(self.oyun_klasoru, kimlik)
+            a = veri["ayar"]
+            motor = self._motor_kur(a["dunya"], a["bellek"], a["editor"], a["yazar"],
+                                    kayit_yolu=self.kayit_klasoru / f"{veri['kayit']}.jsonl")
+            motor.yukle(veri["oyun"])
+            self.motor, self.kimlik = motor, kimlik
+            self.harcama = veri.get("harcama") or {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
+            return {"oyun_var": True, "sahneler": [self._sahne(s) for s in motor.durum.sahneler],
+                    "editor": self._editor_ozeti(), "uyarilar": [], **self._durum_ozeti()}
+
+    def kayit_sil(self, kimlik: str) -> dict:
+        if kimlik == self.kimlik:
+            raise ValueError("Şu an oynanan oyun silinemez; önce başka bir oyun başlat.")
+        oyun_sil(self.oyun_klasoru, kimlik)
+        return self.kayitli_oyunlar()
 
     def dunya_taslagi(self, istek: dict) -> dict:
         """Oyuncunun kısa fikrinden model tam bir dünya taslağı kurar (kaydedilmez, önizlenir)."""
@@ -155,6 +207,7 @@ class Oturum:
             if self.motor is None or not self.motor.durum.sahneler:
                 raise ValueError("Yeniden yazılacak sahne yok.")
             sahne = self.motor.yeniden_yaz()
+            self._kaydet()
             return self._yanit(sahne)
 
     def durum(self) -> dict:
@@ -262,6 +315,8 @@ def isleyici_olustur(oturum: Oturum):
                 self._gonder(200, (WEB_KLASORU / "index.html").read_bytes(), "text/html; charset=utf-8")
             elif self.path == "/api/ayarlar":
                 self._json(200, oturum.ayarlar())
+            elif self.path == "/api/kayitlar":
+                self._json(200, oturum.kayitli_oyunlar())
             elif self.path == "/api/durum":
                 self._json(200, oturum.durum())
             else:
@@ -280,6 +335,10 @@ def isleyici_olustur(oturum: Oturum):
                     self._json(200, oturum.yeniden())
                 elif self.path == "/api/dunya":
                     self._json(200, oturum.dunya_kur(govde))
+                elif self.path == "/api/devam":
+                    self._json(200, oturum.devam(govde.get("kimlik", "")))
+                elif self.path == "/api/kayit/sil":
+                    self._json(200, oturum.kayit_sil(govde.get("kimlik", "")))
                 elif self.path == "/api/dunya/taslak":
                     self._json(200, oturum.dunya_taslagi(govde))
                 else:

@@ -745,3 +745,28 @@ class EditorluMotorTesti(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DurumKayitTesti(unittest.TestCase):
+    def test_durum_gidip_gelir(self):
+        from dataclasses import asdict
+        from hikaye.durum import durum_yukle
+        dunya = dunya_yukle(DUNYA_YOLU)
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("tam"), editor=Editor("tam"))
+        sahne = motor.basla()
+        for _ in range(3):
+            sahne = motor.oyna(sahne.secenekler[0])
+        ham = json.loads(json.dumps(asdict(motor.durum), ensure_ascii=False))   # diske yazılıp okunmuş gibi
+        self.assertEqual(asdict(durum_yukle(ham)), asdict(motor.durum))
+
+    def test_motor_yuklenip_surer(self):
+        dunya = dunya_yukle(DUNYA_YOLU)
+        motor = Motor(dunya, SahteLLM(dunya), Bellek("tam"), editor=Editor("denetim"))
+        sahne = motor.basla()
+        motor.oyna(sahne.secenekler[0])
+        veri = json.loads(json.dumps(motor.kaydedilecek(), ensure_ascii=False))
+        yeni = Motor(dunya, SahteLLM(dunya), Bellek("tam"), editor=Editor("denetim"))
+        yeni.yukle(veri)
+        self.assertEqual(len(yeni.durum.sahneler), 2)
+        self.assertEqual(yeni.oyna("Kapıyı çal").no, 3)
+        self.assertEqual(yeni.yeniden_yaz().no, 3)

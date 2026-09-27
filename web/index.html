@@ -175,6 +175,10 @@
   .bosluk { flex: 1; }
   .kur-ek { display: flex; gap: 8px; flex-wrap: wrap; }
   .pencere .dugmeler { flex-wrap: wrap; }
+  .kayitli-liste { display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow-y: auto; }
+  .kayitli-oge { display: flex; align-items: center; gap: 8px; background: var(--zemin); border-radius: 8px; padding: 7px 10px; }
+  .kayitli-oge .bilgi { flex: 1; min-width: 0; font-size: 13.5px; }
+  .kayitli-oge .bilgi small { display: block; color: var(--soluk); font-size: 12px; }
   .baglanti { border: 0; background: none; color: var(--vurgu); padding: 0; font-size: 12.5px; text-decoration: underline; }
 
   /* Telefon */
@@ -192,7 +196,7 @@
   <div class="konum" id="konum"></div>
   <button class="ikon-dugme" id="panel-dugme" aria-pressed="false" title="Editörün bulgularını göster">Editör</button>
   <button class="ikon-dugme" id="kur-dugme" title="Kendi dünyanı kur">Dünya kur</button>
-  <button class="ikon-dugme" id="yeni-dugme">Yeni oyun</button>
+  <button class="ikon-dugme" id="yeni-dugme" title="Kayıtlı oyunlar ve yeni oyun">Oyunlar</button>
   <button class="ikon-dugme" id="tema-dugme" title="Tema">◐</button>
 </header>
 
@@ -228,8 +232,13 @@
 
 <div id="baslangic" hidden>
   <form class="pencere" id="baslangic-form">
-    <h1>Tuzhan</h1>
-    <p>Tuz çölünün kıyısında, kırk gündür kervan uğramayan bir kasaba. Seçimlerinle ilerleyen bir hikâye.</p>
+    <h1>Hikâye Oyunu</h1>
+    <p>Seçimlerinle ilerleyen bir hikâye. Kayıtlı bir oyuna devam et ya da yenisini başlat.</p>
+    <div class="alan" id="kayitli" hidden>
+      <label>Kayıtlı oyunların</label>
+      <div id="kayitli-liste" class="kayitli-liste"></div>
+      <small>Oyunlar her turdan sonra kendiliğinden kaydedilir.</small>
+    </div>
     <div class="alan">
       <label for="dunya-sec">Dünya</label>
       <select id="dunya-sec"></select>
@@ -481,7 +490,11 @@ async function yenidenYaz() {
 
 /* Sunucudaki oyunu baştan çizer (sayfa yenilenince ya da bir hatadan sonra). */
 async function durumuYukle() {
-  const d = await api("/api/durum");
+  return oyunuCiz(await api("/api/durum"));
+}
+
+/* Sunucudan gelen bir oyunu (tüm sahneleriyle) çizer: sayfa yenilenince ya da kayıttan devamda. */
+function oyunuCiz(d) {
   $("#sahneler").replaceChildren();
   if (!d.oyun_var || !d.sahneler.length) {
     durum.son = null;
@@ -491,7 +504,7 @@ async function durumuYukle() {
   }
   d.sahneler.forEach(sahneCiz);
   const son = d.sahneler[d.sahneler.length - 1];
-  durum.son = { ...d, sahne: son, editor: null, uyarilar: [] };
+  durum.son = { editor: null, uyarilar: [], ...d, sahne: son };
   secenekleriCiz(son.secenekler);
   ustBilgi(d);
   paneliCiz();
@@ -535,10 +548,7 @@ async function basla() {
     secenekDoldur($("#editor-sec"), a.editorler, a.varsayilan.editor, ACIKLAMA.editor, $("#editor-aciklama"));
     ACIKLAMA.yazar = a.yazarlar || {};
     secenekDoldur($("#yazar-sec"), Object.keys(ACIKLAMA.yazar), a.varsayilan.yazar, ACIKLAMA.yazar, $("#yazar-aciklama"));
-    if (!(a.oyun_var && await durumuYukle())) {
-      $("#vazgec").hidden = true;
-      $("#baslangic").hidden = false;
-    }
+    if (!(a.oyun_var && await durumuYukle())) baslangicAc();
   } catch (e) {
     bildir(`Sunucuya bağlanılamadı: ${e.message}`);
   }
@@ -565,11 +575,71 @@ $("#baslangic-form").addEventListener("submit", (e) => {
 });
 $("#yeniden-dugme").addEventListener("click", yenidenYaz);
 $("#vazgec").addEventListener("click", () => ($("#baslangic").hidden = true));
-$("#yeni-dugme").addEventListener("click", () => {
-  if (durum.mesgul) return;
+$("#yeni-dugme").addEventListener("click", () => { if (!durum.mesgul) baslangicAc(); });
+
+/* ── Kayıtlı oyunlar ──────────────────────────────────────── */
+function baslangicAc() {
   $("#vazgec").hidden = !durum.son;
   $("#baslangic").hidden = false;
-});
+  kayitlariYukle();
+}
+
+function tarihYaz(iso) {
+  const t = new Date(iso);
+  return isNaN(t) ? "" : t.toLocaleString("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+}
+
+async function kayitlariYukle() {
+  try {
+    kayitlariCiz(await api("/api/kayitlar"));
+  } catch { $("#kayitli").hidden = true; }
+}
+
+function kayitlariCiz(v) {
+  const liste = $("#kayitli-liste");
+  liste.replaceChildren();
+  $("#kayitli").hidden = !v.kayitlar.length;
+  for (const k of v.kayitlar) {
+    const oge = el("div", "kayitli-oge");
+    const bilgi = el("div", "bilgi", `${k.dunya_ad} · ${k.sahne} sahne`);
+    const oynanan = k.kimlik === v.oynanan;
+    bilgi.append(el("small", "", [oynanan ? "şu an oynanan" : "", k.oyun_zamani, tarihYaz(k.zaman)].filter(Boolean).join(" · ")));
+    const devam = el("button", "ana-dugme", oynanan ? "Dön" : "Devam et");
+    devam.type = "button";
+    devam.onclick = () => (oynanan ? ($("#baslangic").hidden = true) : devamEt(k.kimlik));
+    oge.append(bilgi, devam);
+    if (!oynanan) {
+      const sil = el("button", "ikon-dugme", "Sil");
+      sil.type = "button";
+      sil.onclick = () => kayitSil(k.kimlik, k.dunya_ad);
+      oge.append(sil);
+    }
+    liste.append(oge);
+  }
+}
+
+async function devamEt(kimlik) {
+  $("#baslangic").hidden = true;
+  $("#sahneler").replaceChildren();
+  secenekleriCiz([]);
+  mesgulOl(true);
+  try {
+    oyunuCiz(await api("/api/devam", { kimlik }));
+    bildir("Kaldığın yerden devam ediyorsun.", true, 4000);
+  } catch (e) {
+    bildir(e.message);
+    baslangicAc();
+  } finally {
+    mesgulOl(false);
+  }
+}
+
+async function kayitSil(kimlik, ad) {
+  if (!confirm(`"${ad}" kaydı silinsin mi? Bu geri alınamaz.`)) return;
+  try {
+    kayitlariCiz(await api("/api/kayit/sil", { kimlik }));
+  } catch (e) { bildir(e.message); }
+}
 $("#serbest-form").addEventListener("submit", (e) => { e.preventDefault(); oyna($("#serbest").value); });
 $("#panel-dugme").addEventListener("click", () => panelAc($("#panel").hidden));
 $("#tema-dugme").addEventListener("click", () => {
@@ -863,8 +933,7 @@ async function dunyayiKaydet() {
     try { localStorage.removeItem("dunya_taslak"); localStorage.removeItem("dunya_fikir"); } catch { /* yok say */ }
     $("#kurucu").hidden = true;
     dunyaListesiDoldur(await api("/api/ayarlar"), sonuc.dunya);
-    $("#vazgec").hidden = !durum.son;
-    $("#baslangic").hidden = false;
+    baslangicAc();
     bildir(`"${sonuc.ad}" kaydedildi. Ayarları seçip Başla'ya bas.`, true, 8000);
   } catch (e) {
     bildir(e.message);
@@ -891,7 +960,7 @@ $("#kur-geri").addEventListener("click", () => {
 });
 $("#kur-kapat").addEventListener("click", () => {
   $("#kurucu").hidden = true;   // fikir ve taslak saklı kalır; tekrar açınca kaldığın yerden sürer
-  if (!durum.son) $("#baslangic").hidden = false;
+  if (!durum.son) baslangicAc();
 });
 $("#kur-dugme").addEventListener("click", () => { if (!durum.mesgul) kurucuAc(); });
 $("#kur-baglanti").addEventListener("click", kurucuAc);

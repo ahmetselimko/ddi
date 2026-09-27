@@ -144,6 +144,15 @@ küçültülür, kesme ekleri atılır, kök olarak ilk 5 harf alınır (F5 kök
 Hocanın GPU'lu makinesinde çalışan bir model `yerel` ile bağlanır: sunucunun
 adresini `YEREL_LLM_URL`'e yazmak yeterli.
 
+## Kayıt ve devam
+
+Oyun her turdan sonra kendiliğinden `kayitlar/` altına kaydedilir (sahneler, olgular, vaatler,
+eşyalar, tanışılanlar, zaman, editör notları, harcama). Sunucu kapansa da bir şey kaybolmaz:
+**Oyunlar** düğmesi kayıtlı oyunları listeler; **Devam et** kaldığın sahneden açar, **Yeniden
+yaz** da çalışmaya devam eder. Tur kayıtları aynı `oturumlar/*.jsonl` dosyasına eklenmeye
+sürer, yani ölçüm verisi bölünmez. Kayıt, yazılırken bozulmasın diye önce geçici dosyaya
+yazılıp sonra yerine konur.
+
 ## Kendi dünyanı kur
 
 Web arayüzünde **Dünya kur** (ya da "Yeni oyun" penceresinde "+ Kendi dünyanı kur"):
@@ -198,7 +207,8 @@ hikaye/
 dunyalar/            dünya dosyaları
 ilkeler/             usta yazar ölçütleri ve kaynak özetleri
 testler/             birim testleri
-oturumlar/           oyun kayıtları (git'e girmez)
+oturumlar/           tur kayıtları, ölçüm verisi (git'e girmez)
+kayitlar/            devam edilebilir oyun kayıtları (git'e girmez)
 ```
 
 ## Yol haritası

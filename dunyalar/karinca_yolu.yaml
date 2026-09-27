@@ -1,0 +1,346 @@
+ad: Karınca Yolu
+ton: 'Tür: Diğer. Mikroskobik bir dünyanın detaylarına inen, keşif ve hayatta kalma odaklı bir macera.'
+oyuncu: karınca. Kraliçenin yeni yiyecek deposu bulma emriyle yola çıktı. Yanında sırt çantası (küçük
+  bir tohum için), koku bezleri ve 3 yiyecek parçacığı var.
+giris: Sabahın ilk ışıklarıyla uyanıyorsun. Etrafında hareketli işçi karıncalar vızıldıyor, her biri kendi
+  görevine koşuşturuyor. Yuvanın nemli toprağı ve fermente olmuş yiyeceklerin kokusu burnuna doluyor.
+  Kraliçenin fısıltısı, yeni bir günün başladığını haber veriyor.
+baslangic_mekan: ana_yuva
+baslangic_zamani: 1. gün, sabah
+para_birimi: yiyecek parçacığı
+oyuncu_esyalar:
+- sırt çantası (küçük bir tohum için)
+- koku bezleri
+oyuncu_akce: 3
+kurallar:
+- 'Dönem ve teknoloji: Günümüz, ancak insan teknolojisinden bağımsız, doğal bir karınca kolonisi yaşamı.'
+- İnsan karakterler
+- Büyük ölçekli teknolojiler
+- Doğaüstü olaylar
+vaatler:
+- Koloninin eski kraliçesi neden ortadan kayboldu?
+- Karıncalar için kutsal sayılan Büyük Yaprak Nerede?
+mekanlar:
+- id: ana_yuva
+  ad: Ana Yuva
+  tanim: Toprağın derinliklerine oyulmuş, birçok odaya sahip, karınca koloninin merkezi. En büyük oda
+    Kraliçe'nin Odası'dır, duvarları nemli toprağın ince kökleriyle bezenmiştir. Yiyecek Deposu, yuvanın
+    kuzeybatı tarafında yer alır ve genellikle doludur, ancak son zamanlarda boşalmaktadır.
+  adlar:
+  - ana yuva
+  - ana
+  - anaa
+  - anae
+  - anaya
+  - anaye
+  - anada
+  - anade
+  - anata
+  - anate
+  - anadan
+  - anaden
+  - anatan
+  - anaten
+  - anaı
+  - anai
+  - anau
+  - anaü
+  - anayı
+  - anayi
+  - anayu
+  - anayü
+  - anaın
+  - anain
+  - anaun
+  - anaün
+  - ananın
+  - ananin
+  - ananun
+  - ananün
+  - yuva*
+- id: dis_dunya
+  ad: Dış Dünya
+  tanim: Ana Yuva'nın hemen dışındaki geniş, güneşli alan. Bitki kökleri, taşlar ve kurumuş yapraklarla
+    doludur. Uzakta, ufukta yükselen devasa bir 'dağ' görünümündeki insan evi seçilir. Yiyecek arayışları
+    için ana geçit olan 'Kocaman Çatlak' buradan başlar.
+  adlar:
+  - dış dünya
+  - dış
+  - dışa
+  - dışe
+  - dışya
+  - dışye
+  - dışda
+  - dışde
+  - dışta
+  - dışte
+  - dışdan
+  - dışden
+  - dıştan
+  - dışten
+  - dışı
+  - dışi
+  - dışu
+  - dışü
+  - dışyı
+  - dışyi
+  - dışyu
+  - dışyü
+  - dışın
+  - dışin
+  - dışun
+  - dışün
+  - dışnın
+  - dışnin
+  - dışnun
+  - dışnün
+  - dünya*
+- id: yaprak_alti_gezintisi
+  ad: Yaprak Altı Gezintisi
+  tanim: Büyük bir eğrelti otunun altında yer alan, gölgeli ve nemli bir bölge. Buradaki yapraklar sürekli
+    olarak su damlacıkları biriktirir. Çürüyen odun parçaları ve mantarlar karıncalar için zengin bir
+    besin kaynağı olabilir. Ancak, bu bölgeye 'Yırtıcı Böcek Patikası' denir.
+  adlar:
+  - yaprak altı gezintisi
+  - yaprak*
+  - altı*
+  - alt
+  - alta
+  - alte
+  - altya
+  - altye
+  - altda
+  - altde
+  - altta
+  - altte
+  - altdan
+  - altden
+  - alttan
+  - altten
+  - altı
+  - alti
+  - altu
+  - altü
+  - altyı
+  - altyi
+  - altyu
+  - altyü
+  - altın
+  - altin
+  - altun
+  - altün
+  - altnın
+  - altnin
+  - altnun
+  - altnün
+  - gezintisi*
+  - gezinti*
+- id: gok_tasi_tepecigi
+  ad: Gök Taşı Tepeciği
+  tanim: Yuvanın yaklaşık 20 karınca boyu uzağında, parıldayan koyu renkli, pürüzsüz bir taşın oluşturduğu
+    küçük bir tepecik. Taşın eteklerinde nadir bulunan, tatlı özlü 'parlak meyveler' büyür. Tepeciğin
+    zirvesi, Dış Dünya'nın geniş bir panoramasını sunar.
+  adlar:
+  - gök taşı tepeciği
+  - gök
+  - göka
+  - göke
+  - gökya
+  - gökye
+  - gökda
+  - gökde
+  - gökta
+  - gökte
+  - gökdan
+  - gökden
+  - göktan
+  - gökten
+  - gökı
+  - göki
+  - göku
+  - gökü
+  - gökyı
+  - gökyi
+  - gökyu
+  - gökyü
+  - gökın
+  - gökin
+  - gökun
+  - gökün
+  - göknın
+  - göknin
+  - göknun
+  - göknün
+  - taşı*
+  - taş
+  - taşa
+  - taşe
+  - taşya
+  - taşye
+  - taşda
+  - taşde
+  - taşta
+  - taşte
+  - taşdan
+  - taşden
+  - taştan
+  - taşten
+  - taşı
+  - taşi
+  - taşu
+  - taşü
+  - taşyı
+  - taşyi
+  - taşyu
+  - taşyü
+  - taşın
+  - taşin
+  - taşun
+  - taşün
+  - taşnın
+  - taşnin
+  - taşnun
+  - taşnün
+  - tepeciği*
+  - tepeciğ*
+karakterler:
+- id: kralice_ana
+  ad: Kraliçe Ana
+  adlar:
+  - kraliçe
+  gorunen_ad: Koloninin Annesi
+  tanim: Vücudu diğer karıncalardan iki kat daha büyük, karın bölgesi şişkin ve parlak. Antenleri sürekli
+    titrer.
+  kisilik: Bilge, otoriter ama aynı zamanda şefkatli. Koloninin geleceği için endişeli.
+  konusma: Sakin ve emir verici bir tonda konuşur, az ve öz kelime kullanır. Genellikle 'Evlatlarım' diye
+    hitap eder.
+  imza:
+  - Evlatlarım
+  ornek_replikler:
+  - Evlatlarım, bu kış için yeterli erzakımız yok.
+  yer: ana_yuva
+- id: gezgin_zipir
+  ad: Gezgin Zıpır
+  adlar:
+  - zıpır
+  gorunen_ad: Hızlı Gezgin
+  tanim: Diğer işçi karıncalara göre daha hızlı hareket eder, antenleri hep havada ve meraklıdır. Bir
+    bacağı hafifçe aksar.
+  kisilik: Heyecanlı, meraklı ve biraz da aceleci. Her zaman yeni şeyler keşfetmek ister.
+  konusma: Konuşması hızlı ve kesik kesiktir, sık sık şaşırma ünlemleri kullanır. Hitabı 'Hey dostum'dur.
+  imza:
+  - Hey dostum
+  ornek_replikler:
+  - Hey dostum, baksana şuna, ne de parlak!
+  yer: dis_dunya
+- id: bilge_dede
+  ad: Bilge Dede
+  adlar:
+  - dede
+  gorunen_ad: Yaşlı Karınca
+  tanim: Vücudu yaşlılıktan bükülmüş, antenleri yavaş hareket eder. Sırtında eski bir yara izi taşır.
+  kisilik: Sakin, deneyimli ve geçmişten dersler çıkaran bir rehber. Koloninin tarihini iyi bilir.
+  konusma: Yavaş, düşünceli ve öğüt verici bir tonda konuşur. Genellikle 'genç karınca' diye hitap eder.
+  imza:
+  - Genç karınca
+  ornek_replikler:
+  - Genç karınca, sabırla öğrenmek gerekir.
+  yer: ana_yuva
+- id: cesur_savunmaci
+  ad: Cesur Savunmacı
+  adlar:
+  - savunmacı
+  gorunen_ad: Koloni Muhafızı
+  tanim: Çene yapısı diğer karıncalara göre daha güçlü ve belirgin. Geniş omuzlara sahip.
+  kisilik: Korumacı, cesur ve sadık. Koloninin güvenliği her şeyden önce gelir.
+  konusma: Kısa, net ve buyurgan konuşur. Genellikle 'Asker' diye seslenir.
+  imza:
+  - Asker
+  ornek_replikler:
+  - Asker, burası güvenli değil, geri dön!
+  yer: yaprak_alti_gezintisi
+olgular:
+- id: o1
+  metin: Ana Yuva'nın Yiyecek Deposu'nda sadece 50 birim yiyecek parçacığı kalmıştır.
+  ilgili:
+  - ana_yuva
+- id: o2
+  metin: Kraliçe Ana, her gün 10 yeni yumurta bırakır.
+  ilgili:
+  - kralice_ana
+  - ana_yuva
+- id: o3
+  metin: Gezgin Zıpır'ın sol arka bacağında, Dış Dünya'da bir uğur böceği ile karşılaşmasından kalma küçük
+    bir yara izi vardır.
+  ilgili:
+  - gezgin_zipir
+  - dis_dunya
+- id: o4
+  metin: Bilge Dede, 12 kış önce Yaprak Altı Gezintisi'nde kaybolan 'Büyük Yaprak' hikâyesini bilir.
+  ilgili:
+  - bilge_dede
+  - yaprak_alti_gezintisi
+- id: o5
+  metin: Cesur Savunmacı, Gök Taşı Tepeciği'ne giden yolu korumakla görevlidir.
+  ilgili:
+  - cesur_savunmaci
+  - gok_tasi_tepecigi
+- id: o6
+  metin: Ana Yuva'dan Dış Dünya'ya açılan 'Kocaman Çatlak' her akşam güneş batarken 2 muhafız karınca
+    tarafından nöbet tutulur.
+  ilgili:
+  - ana_yuva
+  - dis_dunya
+- id: o7
+  metin: Gök Taşı Tepeciği'ndeki parlak meyveler, kolonideki en nadir ve besleyici yiyecek olarak bilinir,
+    her hafta sadece 3-5 tane bulunur.
+  ilgili:
+  - gok_tasi_tepecigi
+- id: o8
+  metin: Yaprak Altı Gezintisi'ndeki 'Yırtıcı Böcek Patikası' boyunca her zaman en az 2 örümcek ağı gizlidir.
+  ilgili:
+  - yaprak_alti_gezintisi
+- id: o9
+  metin: Kraliçe Ana'nın Odası'ndaki en eski kök deseni, eski kraliçenin simgesi olan 'Uçan Kanat'ı andırır.
+  ilgili:
+  - kralice_ana
+  - ana_yuva
+- id: o10
+  metin: Büyük Yaprak, karıncaların inancına göre koloniyi felaketlerden koruyan kutsal bir sığınaktır.
+  ilgili:
+  - yaprak_alti_gezintisi
+- id: o11
+  metin: Ana Yuva'nın kuzey tünelinin girişinde, sadece Kraliçe Ana'nın bildiği özel bir koku işareti
+    vardır.
+  ilgili:
+  - kralice_ana
+  - ana_yuva
+- id: o12
+  metin: Gezgin Zıpır'ın antenleri, 10 karınca boyu uzaklıktaki tatlı kokuyu algılayabilir.
+  ilgili:
+  - gezgin_zipir
+- id: o13
+  metin: 'Kraliçe Ana hakkında (henüz kimse bilmiyor): Eski kraliçenin kayboluşu hakkında Kraliçe Ana''nın
+    bildiği sırlar var ama bunları paylaşmaktan çekiniyor.'
+  ilgili:
+  - kralice_ana
+  - ana_yuva
+- id: o14
+  metin: 'Gezgin Zıpır hakkında (henüz kimse bilmiyor): Dış Dünya''nın en ücra köşelerinde dolaşırken,
+    eski kraliçenin gittiği yöne dair bir iz bulduğunu iddia ediyor.'
+  ilgili:
+  - gezgin_zipir
+  - dis_dunya
+- id: o15
+  metin: 'Bilge Dede hakkında (henüz kimse bilmiyor): Eski kraliçe ile gençlik yıllarında çok yakınmış
+    ve onun son görevine dair bazı ipuçlarına sahip.'
+  ilgili:
+  - bilge_dede
+  - kralice_ana
+- id: o16
+  metin: 'Cesur Savunmacı hakkında (henüz kimse bilmiyor): Yaprak Altı Gezintisi''nin derinliklerinde
+    tehlikeli bir yırtıcıya karşı tek başına verdiği mücadeleyi kimseye anlatmadı.'
+  ilgili:
+  - cesur_savunmaci
+  - yaprak_alti_gezintisi
+kurucu: oyuncu

@@ -157,7 +157,7 @@ class KurucuHttpTesti(unittest.TestCase):
         (klasor / "dunyalar").mkdir()
         (klasor / "dunyalar" / "tuzhan.yaml").write_text(
             (KOK / "dunyalar" / "tuzhan.yaml").read_text(encoding="utf-8"), encoding="utf-8")
-        oturum = web.Oturum("sahte", None, klasor / "oturumlar", klasor / "dunyalar")
+        oturum = web.Oturum("sahte", None, klasor / "oturumlar", klasor / "dunyalar", klasor / "kayitlar")
         self.sunucu = ThreadingHTTPServer(("127.0.0.1", 0), web.isleyici_olustur(oturum))
         self.adres = f"http://127.0.0.1:{self.sunucu.server_address[1]}"
         threading.Thread(target=self.sunucu.serve_forever, daemon=True).start()

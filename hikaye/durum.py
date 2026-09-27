@@ -109,6 +109,28 @@ class Durum:
         yol.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def durum_yukle(s: dict) -> Durum:
+    """Durum.kaydet() / asdict(durum) çıktısından Durum'u geri kurar (kayıtlı oyuna devam)."""
+    return Durum(
+        mekan=s["mekan"],
+        zaman=s.get("zaman", ""),
+        sahneler=[Sahne(**{**x, "replikler": [Replik(**r) for r in x.get("replikler", [])]})
+                  for x in s.get("sahneler", [])],
+        olgular=[OyunOlgusu(**o) for o in s.get("olgular", [])],
+        ozet=s.get("ozet", ""),
+        taninan=list(s.get("taninan", [])),
+        esyalar=list(s.get("esyalar", [])),
+        akce=s.get("akce", 0),
+        elden_cikanlar=list(s.get("elden_cikanlar", [])),
+        vaatler=[Vaat(**v) for v in s.get("vaatler", [])],
+        celiskiler=[Celiski(**c) for c in s.get("celiskiler", [])],
+        karakter_degisimleri=[KarakterDegisimi(**d) for d in s.get("karakter_degisimleri", [])],
+        karakter_sapmalari=[KarakterSapmasi(**x) for x in s.get("karakter_sapmalari", [])],
+        editor_notu=s.get("editor_notu", ""),
+        zanaat_gecmisi=[list(z) for z in s.get("zanaat_gecmisi", [])],
+    )
+
+
 def _ayni_esya(a: str, b: str) -> bool:
     return kucult(a).strip() == kucult(b).strip() or (ortusme(a, b) >= 0.6 and ortusme(b, a) >= 0.6)
 

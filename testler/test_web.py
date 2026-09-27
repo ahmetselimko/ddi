@@ -28,7 +28,7 @@ class ParcalaraBolTesti(unittest.TestCase):
 
 class OturumTesti(unittest.TestCase):
     def setUp(self):
-        self.oturum = web.Oturum("sahte", None, KAYIT)
+        self.oturum = web.Oturum("sahte", None, KAYIT, oyun_klasoru=KAYIT / "kayitlar")
 
     def test_yeni_oyun_ve_tur(self):
         ilk = self.oturum.yeni("tuzhan", "tam", "tam")
@@ -56,7 +56,7 @@ class OturumTesti(unittest.TestCase):
 class HttpTesti(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.sunucu = ThreadingHTTPServer(("127.0.0.1", 0), web.isleyici_olustur(web.Oturum("sahte", None, KAYIT)))
+        cls.sunucu = ThreadingHTTPServer(("127.0.0.1", 0), web.isleyici_olustur(web.Oturum("sahte", None, KAYIT, oyun_klasoru=KAYIT / "kayitlar")))
         cls.adres = f"http://127.0.0.1:{cls.sunucu.server_address[1]}"
         threading.Thread(target=cls.sunucu.serve_forever, daemon=True).start()
 
@@ -109,3 +109,56 @@ class HttpTesti(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KayitliOyunTesti(unittest.TestCase):
+    """Her turdan sonra otomatik kayıt; sunucu yeniden açılsa da kaldığı yerden devam."""
+
+    def setUp(self):
+        self.gecici = tempfile.TemporaryDirectory()
+        self.kok = Path(self.gecici.name)
+
+    def tearDown(self):
+        self.gecici.cleanup()
+
+    def _oturum(self):
+        return web.Oturum("sahte", None, self.kok / "oturumlar", oyun_klasoru=self.kok / "kayitlar")
+
+    def test_kaydet_kapat_devam_et(self):
+        birinci = self._oturum()
+        ilk = birinci.yeni("tuzhan", "tam", "tam")
+        ikinci = birinci.oyna(ilk["sahne"]["secenekler"][0])
+        kimlik = birinci.kimlik
+
+        # Sunucu kapandı, yenisi açıldı: kayıt listede
+        yeni = self._oturum()
+        liste = yeni.kayitli_oyunlar()["kayitlar"]
+        self.assertEqual([(k["kimlik"], k["sahne"], k["dunya_ad"]) for k in liste], [(kimlik, 2, "Tuzhan")])
+
+        devam = yeni.devam(kimlik)
+        self.assertEqual(len(devam["sahneler"]), 2)
+        self.assertEqual(devam["sahneler"][-1]["secenekler"], ikinci["sahne"]["secenekler"])
+        self.assertEqual(devam["sayac"], ikinci["sayac"])                   # olgular, vaatler... aynı
+        self.assertEqual(devam["harcama"], ikinci["harcama"])
+        self.assertIsNotNone(devam["editor"])                               # son sahnenin bulguları da geri geldi
+
+        ucuncu = yeni.oyna(devam["sahneler"][-1]["secenekler"][0])
+        self.assertEqual(ucuncu["sahne"]["no"], 3)
+        self.assertEqual(yeni.yeniden()["sahne"]["no"], 3)                 # yeniden yaz da çalışıyor
+        # Tur kayıtları aynı dosyaya eklenmeye sürdü
+        satirlar = [json.loads(s) for s in (self.kok / "oturumlar" / f"{kimlik}.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([s["tip"] for s in satirlar].count("devam"), 1)
+        self.assertEqual(len(yeni.kayitli_oyunlar()["kayitlar"]), 1)
+
+    def test_silme_ve_guvenlik(self):
+        o = self._oturum()
+        o.yeni("tuzhan", "son", "yok")
+        eski = o.kimlik
+        o.yeni("tuzhan", "son", "yok")
+        with self.assertRaises(ValueError):
+            o.kayit_sil(o.kimlik)                                          # oynanan silinemez
+        self.assertEqual(len(o.kayit_sil(eski)["kayitlar"]), 1)
+        with self.assertRaises(ValueError):
+            o.devam("../../gizli")                                         # yol oyunu yok
+        with self.assertRaises(ValueError):
+            o.devam("olmayan_kayit")

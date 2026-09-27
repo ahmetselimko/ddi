@@ -7,11 +7,12 @@ Yazar, editör ve özet için ayrı modeller kullanılabilir (ör. özet için d
 """
 import copy
 import re
+from dataclasses import asdict
 
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
-from .durum import Durum, Replik, Sahne, envanter_oku, envanter_uygula
+from .durum import Durum, Replik, Sahne, durum_yukle, envanter_oku, envanter_uygula
 from .editor import Editor
 from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
@@ -376,6 +377,20 @@ class Motor:
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
         self._tur_oncesi: tuple[Durum, str | None] | None = None   # "yeniden yaz" için
+
+    def kaydedilecek(self) -> dict:
+        """Oyuna sonra devam edebilmek için gereken her şey (JSON'a yazılabilir)."""
+        onceki = None
+        if self._tur_oncesi:
+            onceki = {"durum": asdict(self._tur_oncesi[0]), "eylem": self._tur_oncesi[1]}
+        return {"durum": asdict(self.durum), "tur_oncesi": onceki, "son_bulgular": self.son_bulgular}
+
+    def yukle(self, veri: dict) -> None:
+        """kaydedilecek() çıktısından oyunu geri kurar; "yeniden yaz" da çalışmaya devam eder."""
+        self.durum = durum_yukle(veri["durum"])
+        onceki = veri.get("tur_oncesi")
+        self._tur_oncesi = (durum_yukle(onceki["durum"]), onceki["eylem"]) if onceki else None
+        self.son_bulgular = veri.get("son_bulgular")
 
     @property
     def hafif_yazar(self) -> bool:
