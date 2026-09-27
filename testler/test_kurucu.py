@@ -115,6 +115,41 @@ class CevaplardanDunyaTesti(unittest.TestCase):
         self.assertGreaterEqual(len(ipuclari(sozluk)), 3)
 
 
+class TaslakUretTesti(unittest.TestCase):
+    """Oyuncunun kısa fikrinden modelin kurduğu taslak."""
+
+    def test_fikirden_taslak(self):
+        from hikaye.dunya_kurucu import taslak_uret
+        sonuc = taslak_uret({"tur": "Gizem", "fikir": "Sisli bir liman kasabası, batan bir gemi."}, SahteLLM())
+        t = sonuc["taslak"]
+        # Model listeleri döndürdü; sihirbazın metin kutuları için dizeye çevrildi
+        self.assertEqual(t["yoklar"], "Büyü yok\nAteşli silah çok nadir ve pahalı")
+        self.assertEqual(t["oyuncu"]["esyalar"], "not defteri, mühürlü mektup")
+        self.assertEqual(t["karakterler"][0]["imza"], "tatlım")
+        self.assertEqual(t["para_birimi"], "gümüş")               # para birimini model belirledi
+        sozluk = cevaplardan_dunya(t)                              # kaydedilebilir
+        self.assertEqual(sozluk["para_birimi"], "gümüş")
+
+    def test_bos_fikir_ve_bozuk_yanit(self):
+        from hikaye.dunya_kurucu import taslak_uret
+        from hikaye.llm import LLMYanit
+        with self.assertRaises(KurucuHatasi):
+            taslak_uret({"fikir": "  "}, SahteLLM())
+
+        class BirKezBozuk(SahteLLM):
+            cagri = 0
+
+            def uret(self, sistem, kullanici, json_mod=True, sicaklik=0.8):
+                self.cagri += 1
+                if self.cagri == 1:
+                    return LLMYanit(metin='{"ad": "Yarım"}', sure=0.0)   # geçerli JSON, eksik dünya
+                return super().uret(sistem, kullanici, json_mod, sicaklik)
+
+        llm = BirKezBozuk()
+        self.assertEqual(taslak_uret({"fikir": "Liman"}, llm)["taslak"]["ad"], "Sisli Liman")
+        self.assertEqual(llm.cagri, 2)
+
+
 class KurucuHttpTesti(unittest.TestCase):
     def setUp(self):
         self.gecici = tempfile.TemporaryDirectory()
@@ -153,6 +188,13 @@ class KurucuHttpTesti(unittest.TestCase):
         # 2 başlangıç sorusu + sahte editörün açtığı 1 (sahte editör ayrıca birini çözer)
         self.assertEqual(oyun["sayac"]["vaat"], 3)
         self.assertEqual(len(oyun["acik_vaatler"]) + len(oyun["cozulen_vaatler"]), 3)
+
+    def test_fikirden_taslak_sonra_kaydet(self):
+        kod, v = self._istek("/api/dunya/taslak", {"tur": "Gizem", "fikir": "Sisli bir liman."})
+        self.assertEqual(kod, 200)
+        self.assertEqual(v["taslak"]["ad"], "Sisli Liman")
+        kod, kayit = self._istek("/api/dunya", v["taslak"])
+        self.assertEqual((kod, kayit["dunya"]), (200, "sisli_liman"))
 
     def test_eksik_cevap_400_ve_liste(self):
         kod, v = self._istek("/api/dunya", {"ad": "Yarım"})

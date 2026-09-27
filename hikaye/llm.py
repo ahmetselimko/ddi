@@ -144,13 +144,33 @@ class YerelLLM:
 class SahteLLM:
     """Ağ kullanmaz. Motorun ve bellek stratejilerinin uçtan uca testi için."""
 
-    def __init__(self, dunya):
+    def __init__(self, dunya=None):
         self.ad = "sahte"
-        self._mekanlar = list(dunya.mekanlar)
-        self._karakterler = list(dunya.karakterler)
-        self._olgular = [o.id for o in dunya.olgular]
+        self._mekanlar = list(dunya.mekanlar) if dunya else []
+        self._karakterler = list(dunya.karakterler) if dunya else []
+        self._olgular = [o.id for o in dunya.olgular] if dunya else []
         self.cagri_sayisi = 0
         self.editor_cagrisi = 0
+
+    # Dünya taslağı isteğine sahte yanıt (dunya_kurucu.taslak_uret testleri için)
+    DUNYA_TASLAGI = {
+        "ad": "Sisli Liman", "tur": "Gizem", "ton": "Nemli, kasvetli, fısıltılı",
+        "donem": "Yelkenli gemiler çağı; buhar makinesi yok",
+        "yoklar": ["Büyü yok", "Ateşli silah çok nadir ve pahalı"], "para_birimi": "gümüş",
+        "oyuncu": {"kim": "Limana yeni gelen bir sigorta müfettişi", "neden": "Batan bir geminin kaydını incelemek",
+                   "esyalar": ["not defteri", "mühürlü mektup"], "para": 12},
+        "sir": ["Martı gemisi neden battı?"],
+        "mekanlar": [{"ad": "Rıhtım Meyhanesi", "tanim": "Tavanı alçak, balık kokulu bir meyhane; yedi masa var."},
+                     {"ad": "Liman Deposu", "tanim": "Kilitli, nemli bir ambar."}],
+        "karakterler": [{"ad": "Meyhaneci Duru", "kisa_ad": "Duru", "gorunus": "Kızıl saçlı, kolları dövmeli",
+                         "gorunen_ad": "Kızıl saçlı kadın", "kisilik": "Neşeli ama sır tutar",
+                         "konusma": "Hızlı, şakacı", "imza": ["tatlım"], "ornek": "Otur tatlım, rom soğumasın.",
+                         "sir": "Martı'nın kaptanını son gören o.", "yer": "Rıhtım Meyhanesi"}],
+        "gercekler": ["Martı gemisi on iki gün önce battı; mürettebattan yalnızca ikisi kurtuldu.",
+                      "Liman Deposu'nun anahtarı Meyhaneci Duru'da."],
+        "acilis": {"mekan": "Rıhtım Meyhanesi", "zaman": "1. gün, akşam",
+                   "metin": "Sis limanı yutarken meyhanenin kapısını itiyorsun."},
+    }
 
     def uret(self, sistem: str, kullanici: str, json_mod: bool = True, sicaklik: float = 0.8) -> LLMYanit:
         self.cagri_sayisi += 1
@@ -159,6 +179,8 @@ class SahteLLM:
             return LLMYanit(metin=f"Özet {n}: oyuncu kasabada iz sürüyor.", sure=0.0)
         if "editörüsün" in sistem:
             return LLMYanit(metin=json.dumps(self._editor_yaniti(n, kullanici), ensure_ascii=False), sure=0.0)
+        if "dünya tasarlayan" in sistem:
+            return LLMYanit(metin=json.dumps(self.DUNYA_TASLAGI, ensure_ascii=False), sure=0.0)
         k = self._karakterler[n % len(self._karakterler)]
         veri = {
             "akis": [

@@ -173,6 +173,8 @@
   .onizleme h4 { margin: 14px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--soluk); }
   .onizleme p, .onizleme li { margin: 2px 0; font-size: 14px; }
   .bosluk { flex: 1; }
+  .kur-ek { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pencere .dugmeler { flex-wrap: wrap; }
   .baglanti { border: 0; background: none; color: var(--vurgu); padding: 0; font-size: 12.5px; text-decoration: underline; }
 
   /* Telefon */
@@ -266,6 +268,7 @@
     <div class="dugmeler">
       <button type="button" class="ikon-dugme" id="kur-kapat">Kapat</button>
       <span class="bosluk"></span>
+      <span id="kur-ek" class="kur-ek"></span>
       <button type="button" class="ikon-dugme" id="kur-geri">Geri</button>
       <button type="submit" class="ana-dugme" id="kur-ileri">İleri</button>
     </div>
@@ -674,7 +677,6 @@ const ADIMLAR = [
       alan(k, taslak, "donem", "Dönem ve teknoloji", { tur: "uzun", yer: "ör. Orta çağ benzeri; büyü var ama çok nadir ve korkulur" });
       alan(k, taslak, "yoklar", "Bu dünyada neler YOK? (her satıra bir tane)", { tur: "uzun", satir: 4,
         yer: "ör.\nAteşli silah yok\nKimse uçamaz\nÖlüler geri dönmez" });
-      alan(k, taslak, "para_birimi", "Para birimi", { yer: "ör. akçe, kredi, altın" });
     } },
   { baslik: "Oyuncu",
     ipucu: "Oyuncunun kim olduğu ve yanında ne taşıdığı. Oyun, oyuncunun yalnızca bunları kullanabilmesini denetler.",
@@ -755,57 +757,140 @@ function onizlemeCiz(k) {
   k.append(o);
 }
 
-function adimCiz() {
-  const a = ADIMLAR[adim];
-  $("#adim-baslik").textContent = a.baslik;
-  $("#adim-sayac").textContent = `${adim + 1} / ${ADIMLAR.length}`;
-  $("#adim-ipucu").textContent = a.ipucu;
-  const icerik = $("#adim-icerik");
-  icerik.replaceChildren();
-  a.ciz(icerik);
-  icerik.scrollTop = 0;
-  $("#kur-geri").disabled = adim === 0;
-  $("#kur-ileri").textContent = adim === ADIMLAR.length - 1 ? "Kaydet" : "İleri";
+/* Akış: "fikir" (oyuncu 1-5 kısa cevap) → model taslağı kurar → "onizleme" → Kaydet,
+   ya da "adim" (ayrıntılı düzenleme, taslakla dolu). Ayrıntılı kurulum boş da başlatılabilir. */
+let kurMod = "fikir";
+let fikir = null;
+let taslakBilgisi = "";
+
+const bosFikir = () => ({ tur: "", fikir: "", oyuncu: "", olsun: "", olmasin: "" });
+function fikirYaz() { localStorageYaz("dunya_fikir", JSON.stringify(fikir)); }
+function fikirOku() { try { return JSON.parse(localStorageOku("dunya_fikir") || "null"); } catch { return null; } }
+
+function dugme(metin, tiklaninca) {
+  const d = el("button", "ikon-dugme", metin);
+  d.type = "button";
+  d.onclick = tiklaninca;
+  return d;
 }
 
+function fikirCiz(k) {
+  alan(k, fikir, "tur", "Tür", { tur: "secim", secenekler: ["", ...TURLER] });
+  alan(k, fikir, "fikir", "Hikâyeni birkaç cümleyle anlat", { gerekli: true, tur: "uzun", satir: 4,
+    yer: "ör. Tuz çölünün kıyısında, kırk gündür kervan uğramayan bir kasaba. Kayıp bir kervanın izini sürüyorum." });
+  alan(k, fikir, "oyuncu", "Sen kimsin? (isteğe bağlı)", { yer: "ör. genç bir haritacı" });
+  alan(k, fikir, "olsun", "Mutlaka olsun istediklerin (isteğe bağlı)", { tur: "uzun", satir: 2,
+    yer: "ör. sır tutan bir hancı, gece görünen mavi ışıklar" });
+  alan(k, fikir, "olmasin", "Olmasın istediklerin (isteğe bağlı)", { tur: "uzun", satir: 2, yer: "ör. büyü, ateşli silah" });
+  k.querySelectorAll("input, textarea, select").forEach((g) => g.addEventListener("input", fikirYaz));
+  k.querySelectorAll("select").forEach((g) => g.addEventListener("change", fikirYaz));
+}
+
+function kurucuCiz() {
+  const ek = $("#kur-ek");
+  ek.replaceChildren();
+  const icerik = $("#adim-icerik");
+  icerik.replaceChildren();
+  icerik.scrollTop = 0;
+  const geri = $("#kur-geri");
+  if (kurMod === "fikir") {
+    $("#adim-baslik").textContent = "Yeni dünya";
+    $("#adim-sayac").textContent = "";
+    $("#adim-ipucu").textContent = "Birkaç cümle yeter. Gerisini model senin fikrinden yola çıkarak kurar; sonra önizleyip kaydedersin.";
+    fikirCiz(icerik);
+    geri.hidden = true;
+    ek.append(dugme("Ayrıntılı kur", () => { taslak = taslakOku() || bosTaslak(); adim = 0; kurMod = "adim"; kurucuCiz(); }));
+    $("#kur-ileri").textContent = "Dünyayı oluştur";
+  } else if (kurMod === "onizleme") {
+    $("#adim-baslik").textContent = taslak.ad || "Dünya taslağı";
+    $("#adim-sayac").textContent = "Önizleme";
+    $("#adim-ipucu").textContent = taslakBilgisi || "Beğendiysen kaydet; beğenmediysen yeniden oluştur ya da düzenle.";
+    onizlemeCiz(icerik);
+    geri.hidden = false;
+    geri.textContent = "← Fikre dön";
+    ek.append(dugme("Yeniden oluştur", taslakUret), dugme("Düzenle", () => { adim = 0; kurMod = "adim"; kurucuCiz(); }));
+    $("#kur-ileri").textContent = "Kaydet";
+  } else {
+    const a = ADIMLAR[adim];
+    $("#adim-baslik").textContent = a.baslik;
+    $("#adim-sayac").textContent = `${adim + 1} / ${ADIMLAR.length}`;
+    $("#adim-ipucu").textContent = a.ipucu;
+    a.ciz(icerik);
+    geri.hidden = false;
+    geri.textContent = "Geri";
+    $("#kur-ileri").textContent = adim === ADIMLAR.length - 1 ? "Kaydet" : "İleri";
+  }
+}
+const adimCiz = kurucuCiz;       // listeCiz ve eski çağrılar için
+
 function kurucuAc() {
+  fikir = fikirOku() || bosFikir();
   taslak = taslakOku() || bosTaslak();
-  adim = 0;
+  kurMod = "fikir";
   $("#baslangic").hidden = true;
   $("#kurucu").hidden = false;
-  adimCiz();
+  kurucuCiz();
+}
+
+function kurucuMesgul(evet, mesaj) {
+  document.querySelectorAll("#kurucu-form button").forEach((d) => (d.disabled = evet));
+  if (evet) $("#adim-ipucu").textContent = mesaj;
+}
+
+async function taslakUret() {
+  if (!fikir.fikir.trim()) { bildir("Hikâyeni birkaç cümleyle anlat."); return; }
+  kurucuMesgul(true, "Dünya kuruluyor… (yaklaşık 10-20 saniye)");
+  try {
+    const sonuc = await api("/api/dunya/taslak", fikir);
+    taslak = sonuc.taslak;
+    taslakYaz();
+    const maliyet = sonuc.maliyet != null ? ` Bu taslağın maliyeti: ~$${sonuc.maliyet.toFixed(3)}.` : "";
+    const ipucu = sonuc.ipuclari.length ? ` Not: ${sonuc.ipuclari.join(" ")}` : "";
+    taslakBilgisi = `Beğendiysen kaydet; beğenmediysen yeniden oluştur ya da düzenle.${maliyet}${ipucu}`;
+    kurMod = "onizleme";
+  } catch (e) {
+    bildir(e.message);
+  } finally {
+    kurucuMesgul(false);
+    kurucuCiz();
+  }
 }
 
 async function dunyayiKaydet() {
-  const ileri = $("#kur-ileri");
-  ileri.disabled = true;
+  kurucuMesgul(true, "Kaydediliyor…");
   try {
     const sonuc = await api("/api/dunya", taslak);
-    try { localStorage.removeItem("dunya_taslak"); } catch { /* yok say */ }
+    try { localStorage.removeItem("dunya_taslak"); localStorage.removeItem("dunya_fikir"); } catch { /* yok say */ }
     $("#kurucu").hidden = true;
     dunyaListesiDoldur(await api("/api/ayarlar"), sonuc.dunya);
     $("#vazgec").hidden = !durum.son;
     $("#baslangic").hidden = false;
-    const ipucu = sonuc.ipuclari.length ? " İpucu: " + sonuc.ipuclari.join(" ") : "";
-    bildir(`"${sonuc.ad}" kaydedildi. Ayarları seçip Başla'ya bas.${ipucu}`, true, 12000);
+    bildir(`"${sonuc.ad}" kaydedildi. Ayarları seçip Başla'ya bas.`, true, 8000);
   } catch (e) {
     bildir(e.message);
   } finally {
-    ileri.disabled = false;
+    kurucuMesgul(false);
   }
 }
 
 $("#kurucu-form").addEventListener("submit", (e) => {
   e.preventDefault();
+  if (kurMod === "fikir") { taslakUret(); return; }
+  if (kurMod === "onizleme") { dunyayiKaydet(); return; }
   const hata = ADIMLAR[adim].dogrula && ADIMLAR[adim].dogrula();
   if (hata) { bildir(hata); return; }
   if (adim === ADIMLAR.length - 1) { dunyayiKaydet(); return; }
   adim += 1;
-  adimCiz();
+  kurucuCiz();
 });
-$("#kur-geri").addEventListener("click", () => { if (adim > 0) { adim -= 1; adimCiz(); } });
+$("#kur-geri").addEventListener("click", () => {
+  if (kurMod === "onizleme") kurMod = "fikir";
+  else if (kurMod === "adim" && adim > 0) adim -= 1;
+  else if (kurMod === "adim") kurMod = taslak.ad ? "onizleme" : "fikir";
+  kurucuCiz();
+});
 $("#kur-kapat").addEventListener("click", () => {
-  $("#kurucu").hidden = true;   // taslak saklı kalır; tekrar açınca kaldığın yerden sürer
+  $("#kurucu").hidden = true;   // fikir ve taslak saklı kalır; tekrar açınca kaldığın yerden sürer
   if (!durum.son) $("#baslangic").hidden = false;
 });
 $("#kur-dugme").addEventListener("click", () => { if (!durum.mesgul) kurucuAc(); });

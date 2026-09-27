@@ -372,3 +372,60 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         + ornek_zanaat + "\n}"
     )
     return _EDITOR_SISTEM, "\n\n".join(bolumler)
+
+
+_DUNYA_SISTEM = (
+    "Sen Türkçe bir interaktif hikâye oyunu için dünya tasarlayan bir yazarsın. Oyuncunun kısa "
+    "fikrinden yola çıkıp oynanabilir, tutarlı ve SOMUT bir dünya kurarsın. Yalnızca istenen JSON'u döndür."
+)
+
+_DUNYA_BICIMI = """{
+  "ad": "dünyanın adı",
+  "tur": "tür",
+  "ton": "anlatımın tonu, bir cümle",
+  "donem": "dönem ve teknoloji düzeyi, bir cümle",
+  "yoklar": ["bu dünyada olmayan şey", "..."],
+  "para_birimi": "türe uygun para birimi",
+  "oyuncu": {"kim": "oyuncu karakter kim", "neden": "neden burada", "esyalar": ["eşya", "..."], "para": 0},
+  "sir": ["hikâyenin kalbindeki büyük soru", "..."],
+  "mekanlar": [{"ad": "mekânın adı", "tanim": "somut ayrıntılı tanım"}],
+  "karakterler": [{"ad": "adı ve varsa kısa unvanı (ör. Kadir Bey, Hemşire Leyla)", "kisa_ad": "yalnızca kişi adı (ör. Kadir)", "adsiz": false,
+                   "gorunus": "görünüşü", "gorunen_ad": "tanışmadan önce nasıl anılır, 2-3 sözcük",
+                   "kisilik": "kişiliği", "konusma": "nasıl konuşur: cümle yapısı, hitap, alışkanlık",
+                   "imza": ["yalnızca ona ait 1-3 sözcüklük hitap ya da kalıp"], "ornek": "ağzından çıkabilecek bir cümle",
+                   "sir": "oyuncunun hemen öğrenmediği sırrı", "yer": "genelde bulunduğu mekânın adı (yukarıdaki listeden)"}],
+  "gercekler": ["hikâye boyunca değişmeyecek somut gerçek", "..."],
+  "acilis": {"mekan": "başlangıç mekânının adı", "zaman": "1. gün, vakit", "metin": "açılış sahnesi"}
+}"""
+
+
+def dunya_istemi(istek: dict) -> tuple[str, str]:
+    """Oyuncunun birkaç cümlelik fikrinden tam dünya taslağı istetir (dunya_kurucu.taslak_uret)."""
+    satir = lambda baslik, anahtar, yoksa: f"{baslik}: {str(istek.get(anahtar) or '').strip() or yoksa}"  # noqa: E731
+    kullanici = "\n".join([
+        "[OYUNCUNUN FİKRİ]",
+        satir("Tür", "tur", "sen seç"),
+        satir("Hikâye", "fikir", "(yok)"),
+        satir("Oyuncu", "oyuncu", "sen belirle"),
+        satir("Mutlaka olsun", "olsun", "(özel isteği yok)"),
+        satir("Olmasın", "olmasin", "(özel isteği yok)"),
+        "",
+        "[KURALLAR]",
+        "- Oyuncunun yazdıklarını değiştirme, yalnızca genişlet. Yazmadıklarını türe uygun biçimde sen belirle.",
+        "- 3-5 mekân ve 3-5 karakter. Karakterlerin konuşma üslupları birbirinden belirgin biçimde farklı olsun;",
+        "  her birinin imza sözü yalnızca kendine ait, 1-3 sözcüklük bir hitap ya da kalıp olsun (ör. \"evlat\",",
+        "  \"sevgili dostum\"); iki karakter aynı hitabı kullanmasın, imza tam cümle olmasın.",
+        "- Karakterin görevini adına yazma: \"Kadir Bey\" ad, \"sanatoryumun eski bekçisi\" görünüşte ya da kişilikte.",
+        "- 8-12 kesin gerçek. SOMUT olsunlar: sayılar, kim neyi biliyor, ne kilitli, kim kimin nesi, nerede ne var.",
+        "  Gerçeklerde karakterlerden tam adlarıyla, mekânlardan adlarıyla söz et.",
+        "- 2-4 madde 'yoklar': türün dışına taşan, modelin uydurmaması gereken şeyler.",
+        "- 1-3 büyük soru. Cevapların ipuçları gerçeklerde ve sırlarda gizli olsun, açılışta söylenmesin.",
+        "- Tarihler, süreler ve dönem birbiriyle tutarlı olsun (\"kırk yıldır kapalı\" diyorsan kapanış tarihi dönemden",
+        "  kırk yıl önce olsun). Oyuncunun verdiği süreleri esas al.",
+        "- Oyuncunun eşyaları ve parası türe ve rolüne uygun, az ve işe yarar olsun.",
+        "- Açılış 2-4 cümle, ikinci tekil şahıs, şimdiki zaman. Karakterlerin adlarını söyleme, görünüşleriyle an.",
+        "",
+        "[JSON BİÇİMİ]",
+        _DUNYA_BICIMI,
+    ])
+    return _DUNYA_SISTEM, kullanici

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import dunya_yukle
-from hikaye.dunya_kurucu import KurucuHatasi, cevaplardan_dunya, dunya_kaydet, ipuclari
+from hikaye.dunya_kurucu import KurucuHatasi, cevaplardan_dunya, dunya_kaydet, ipuclari, taslak_uret
 from hikaye.editor import MODLAR, Editor
 from hikaye.kayit import Kayitci
 from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
@@ -123,6 +123,16 @@ class Oturum:
                 raise ValueError("Önce yeni bir oyun başlat.")
             sahne = self.motor.oyna(eylem)
             return self._yanit(sahne)
+
+    def dunya_taslagi(self, istek: dict) -> dict:
+        """Oyuncunun kısa fikrinden model tam bir dünya taslağı kurar (kaydedilmez, önizlenir)."""
+        llm = llm_olustur(self.llm_turu, model=self.model, yazar="hizli")
+        sonuc = taslak_uret(istek, llm)
+        fiyat = FIYATLAR.get(_model_adi(llm))
+        dolar = sum((y.girdi_token or 0) * fiyat[0] / 1e6 + (y.cikti_token or 0) * fiyat[1] / 1e6
+                    for y in sonuc["yanitlar"]) if fiyat else None
+        return {"taslak": sonuc["taslak"], "ipuclari": sonuc["ipuclari"],
+                "maliyet": round(dolar, 4) if dolar is not None else None}
 
     def dunya_kur(self, cevaplar: dict) -> dict:
         """Oyuncunun sihirbazdaki cevaplarından yeni bir dünya dosyası kurar."""
@@ -270,6 +280,8 @@ def isleyici_olustur(oturum: Oturum):
                     self._json(200, oturum.yeniden())
                 elif self.path == "/api/dunya":
                     self._json(200, oturum.dunya_kur(govde))
+                elif self.path == "/api/dunya/taslak":
+                    self._json(200, oturum.dunya_taslagi(govde))
                 else:
                     self._json(404, {"hata": "Bulunamadı."})
             except KurucuHatasi as e:

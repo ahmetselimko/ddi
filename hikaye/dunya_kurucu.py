@@ -238,6 +238,68 @@ def ipuclari(dunya_sozlugu: dict) -> list[str]:
     return oneriler
 
 
+def _metin(x, ayirici: str) -> str:
+    """Model liste de dize de döndürebilir; sihirbazın metin kutuları dize bekler."""
+    if isinstance(x, list):
+        return ayirici.join(str(o).strip() for o in x if str(o).strip())
+    return str(x or "").strip()
+
+
+def taslagi_duzenle(ham: dict) -> dict:
+    """Modelin ürettiği taslağı sihirbazın cevap biçimine getirir (liste → metin, eksik → boş)."""
+    oyuncu = ham.get("oyuncu") if isinstance(ham.get("oyuncu"), dict) else {}
+    acilis = ham.get("acilis") if isinstance(ham.get("acilis"), dict) else {}
+    try:
+        para = int(oyuncu.get("para") or 0)
+    except (TypeError, ValueError):
+        para = 0
+    return {
+        "ad": _metin(ham.get("ad"), " "), "tur": _metin(ham.get("tur"), " "), "ton": _metin(ham.get("ton"), " "),
+        "donem": _metin(ham.get("donem"), " "), "yoklar": _metin(ham.get("yoklar"), "\n"),
+        "para_birimi": _metin(ham.get("para_birimi"), " ") or "akçe",
+        "oyuncu": {"kim": _metin(oyuncu.get("kim"), " "), "neden": _metin(oyuncu.get("neden"), " "),
+                   "esyalar": _metin(oyuncu.get("esyalar"), ", "), "para": para},
+        "sir": _metin(ham.get("sir"), "\n"),
+        "mekanlar": [{"ad": _metin(m.get("ad"), " "), "tanim": _metin(m.get("tanim"), " ")}
+                     for m in ham.get("mekanlar") or [] if isinstance(m, dict)],
+        "karakterler": [{
+            "ad": _metin(k.get("ad"), " "), "kisa_ad": _metin(k.get("kisa_ad"), " "), "adsiz": bool(k.get("adsiz")),
+            "gorunus": _metin(k.get("gorunus"), " "), "gorunen_ad": _metin(k.get("gorunen_ad"), " "),
+            "kisilik": _metin(k.get("kisilik"), " "), "konusma": _metin(k.get("konusma"), " "),
+            "imza": _metin(k.get("imza"), ", "), "ornek": _metin(k.get("ornek"), "\n"),
+            "sir": _metin(k.get("sir"), " "), "yer": _metin(k.get("yer"), " "),
+        } for k in ham.get("karakterler") or [] if isinstance(k, dict)],
+        "gercekler": _metin(ham.get("gercekler"), "\n"),
+        "acilis": {"mekan": _metin(acilis.get("mekan"), " "), "zaman": _metin(acilis.get("zaman"), " "),
+                   "metin": _metin(acilis.get("metin"), " ")},
+    }
+
+
+def taslak_uret(istek: dict, llm, deneme: int = 2) -> dict:
+    """Oyuncunun kısa fikrinden (tür, birkaç cümle, isteğe bağlı oyuncu/istekler) modelle tam
+    dünya taslağı üretir. Taslak kaydedilmez: oyuncu önizler, düzenler ya da yeniden ürettirir.
+    Geçerliliği, kaydedilecekmiş gibi cevaplardan_dunya ile denetlenir."""
+    from . import istem
+    from .llm import json_coz
+
+    if not str(istek.get("fikir") or "").strip():
+        raise KurucuHatasi(["Hikâyeni birkaç cümleyle anlat."])
+    sistem, kullanici = istem.dunya_istemi(istek)
+    hatalar, istek_metni, yanitlar = [], kullanici, []
+    for _ in range(deneme):
+        yanit = llm.uret(sistem, istek_metni, sicaklik=0.9)
+        yanitlar.append(yanit)
+        try:
+            taslak = taslagi_duzenle(json_coz(yanit.metin))
+            sozluk = cevaplardan_dunya(taslak)                 # geçerli mi?
+            return {"taslak": taslak, "ipuclari": ipuclari(sozluk), "yanitlar": yanitlar}
+        except (ValueError, KurucuHatasi) as e:
+            hata = "; ".join(e.hatalar) if isinstance(e, KurucuHatasi) else str(e)
+            hatalar.append(hata)
+            istek_metni = f"{kullanici}\n\nÖnceki yanıtın geçersizdi ({hata}). Yalnızca istenen JSON'u eksiksiz döndür."
+    raise KurucuHatasi([f"Model geçerli bir dünya üretemedi, tekrar dene. ({hatalar[-1]})"])
+
+
 def dunya_kaydet(dunya_sozlugu: dict, klasor: Path) -> str:
     """Dosyaya yazar, oyunun yükleyicisiyle doğrular; hatalıysa dosyayı siler.
     Mevcut dünyaların üzerine yazmaz. Dosya adını (uzantısız) döndürür."""
