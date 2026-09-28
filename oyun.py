@@ -150,8 +150,7 @@ def main() -> None:
         try:
             if args.otomatik is None and eylem.lower() == "y":
                 sahne = motor.yeniden_yaz()          # son sahneyi aynı eylemle yeniden yazdır
-                print("
-[Son sahne yeniden yazıldı]")
+                print("\n[Son sahne yeniden yazıldı]")
             else:
                 sahne = motor.oyna(eylem)
         except YanitHatasi as e:
