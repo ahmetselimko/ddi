@@ -17,6 +17,15 @@ def tearDownModule():
     _GECICI.cleanup()
 
 
+class GirisDosyalariTesti(unittest.TestCase):
+    """Hiçbir test oyun.py'yi yüklemiyordu; sözdizimi hatası fark edilmeden main'e girmişti."""
+
+    def test_derlenir(self):
+        kok = Path(__file__).resolve().parent.parent
+        for ad in ("oyun.py", "web.py"):
+            compile((kok / ad).read_text(encoding="utf-8"), ad, "exec")
+
+
 class ParcalaraBolTesti(unittest.TestCase):
     def test_anlatim_ve_replik_ayrilir(self):
         parcalar = web.parcalara_bol('Fener titriyor.\nİri yapılı kadın: "Otur, evlat."\n')

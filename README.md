@@ -10,9 +10,15 @@ kalmasını sağlamak ve bunu ölçmek.
 - **Ölçmek:** editörün ve kodun bulduğu her şey (çelişkiler, karakter sapmaları,
   bilgi sızıntıları, vaatler) oturum kaydına yazılır.
 
+Doğal Dil İşleme dersi projesi. Nasıl başladığı, alınan kararlar ve test oyunlarının
+bulguları: [docs/PROJE_GUNLUGU.md](docs/PROJE_GUNLUGU.md).
+
 ## Hızlı başlangıç
 
+Python 3.12 ile geliştirildi. Bir [Gemini API anahtarı](https://aistudio.google.com/apikey) gerekir.
+
 ```bash
+pip install -r requirements.txt
 cp .env.example .env          # GEMINI_API_KEY'i doldur
 python web.py                 # web arayüzü: tarayıcıda http://127.0.0.1:8000 açılır
 python oyun.py                # ya da terminalde oyna: seçenek numarası ya da serbest eylem, çıkış: q
@@ -25,8 +31,8 @@ python oyun.py --ayrinti      # terminalde editörün her sahnedeki bulguların�
 Ek paket gerekmez. Sahneler sohbet gibi akar; seçenekler buton olarak gelir ya da serbest
 eylem yazılır (klavyeden 1-4 de seçer). **Editör** düğmesi yan paneli açar: son sahnenin
 çelişkileri, karakter uyarıları, vaat defteri, tanışılan karakterler ve tahmini harcama.
-Sayfa yenilense de oyun kaldığı yerden devam eder; sunucu kapanınca oyun biter (kaydı
-`oturumlar/` altında kalır).
+Sayfa yenilense de, sunucu kapanıp açılsa da oyun kaldığı yerden devam eder (aşağıda
+**Kayıt ve devam**).
 
 **↻ Yeniden yaz** son sahneyi geri alıp aynı eylemle yeniden yazdırır (olgular, vaatler,
 eşyalar da geri alınır); komut satırında `y`.
@@ -141,8 +147,8 @@ küçültülür, kesme ekleri atılır, kök olarak ilk 5 harf alınır (F5 kök
 | `yerel` | OpenAI uyumlu sunucu: Ollama, vLLM, LM Studio | `YEREL_LLM_URL`, `YEREL_LLM_MODEL` |
 | `sahte` | Ağsız, sabit yanıtlı test modeli | — |
 
-Hocanın GPU'lu makinesinde çalışan bir model `yerel` ile bağlanır: sunucunun
-adresini `YEREL_LLM_URL`'e yazmak yeterli.
+GPU'lu bir makinede çalışan bir model `yerel` ile bağlanır: sunucunun adresini
+`YEREL_LLM_URL`'e yazmak yeterli. Bu yol henüz gerçek bir yerel modelle denenmedi.
 
 ## Kayıt ve devam
 
@@ -155,7 +161,7 @@ yazılıp sonra yerine konur.
 
 ## Kendi dünyanı kur
 
-Web arayüzünde **Dünya kur** (ya da "Yeni oyun" penceresinde "+ Kendi dünyanı kur"):
+Web arayüzünde **Dünya kur** (ya da **Oyunlar** penceresinde "+ Kendi dünyanı kur"):
 
 1. **Fikir:** Tür ve hikâyeyi birkaç cümleyle yazarsın; istersen kim olduğunu, mutlaka
    olmasını ve olmamasını istediklerini de eklersin.
@@ -177,7 +183,7 @@ düzenlenebilir. Yarım kalan fikir ve taslak tarayıcıda saklanır.
 
 ## Dünya dosyası
 
-[dunyalar/tuzhan.yaml](dunyalar/tuzhan.yaml) örnek dünyadır: 5 mekân, 5 karakter,
+[dunyalar/tuzhan.yaml](dunyalar/tuzhan.yaml) örnek dünyadır (yapay zekâyla yazıldı): 5 mekân, 5 karakter,
 14 olgu. Olgular bilerek somut seçildi (yedi numaralı oda kilitli, anahtar yalnızca
 Nehir Hanım'da; kervanda on bir deve vardı...), çünkü tutarlılık bunlara karşı
 ölçülecek. Karakterlerin konuşma üslupları da ölçülebilir işaretler taşıyor
@@ -203,7 +209,8 @@ hikaye/
   istem.py           tüm istem metinleri
   llm.py             dil modeli arka uçları
   motor.py           tur döngüsü ve yanıt doğrulama
-  kayit.py           oturum kaydı (JSONL)
+  kayit.py           tur kaydı (JSONL) ve devam edilebilir oyun kaydı
+docs/                proje günlüğü
 dunyalar/            dünya dosyaları
 ilkeler/             usta yazar ölçütleri ve kaynak özetleri
 testler/             birim testleri
@@ -211,10 +218,61 @@ oturumlar/           tur kayıtları, ölçüm verisi (git'e girmez)
 kayitlar/            devam edilebilir oyun kayıtları (git'e girmez)
 ```
 
+## Bilinen eksikler
+
+Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görülen ve henüz
+çözülmemiş sorunlar:
+
+**Hikâye kalitesi**
+- Anlatım bazen oyuncunun bilmediği bir şeyi sızdırıyor: henüz öğrenilmemiş bir akrabalık
+  ("amcasının"), seçeneklerde daha duyulmamış bir ayrıntı.
+- Ara sıra döneme uymayan sözcük ya da ayrıntı çıkıyor (Tuzhan'da "halüsinasyon", deve
+  kervanında "tekerlek izi"). Dünya kuralı var, ama model her seferinde uymuyor.
+- Model kendi kurduğu dünyada tarih ve süreleri bazen birbiriyle çelişkili yazabiliyor. İsteme
+  kural eklendi, gerçek modelle yeniden denenmedi.
+
+**Editör**
+- Gürültülü: yanlış alarm veriyor (5 + 1 akçeyi "çelişki" sayması gibi), bazı çelişkileri
+  kaçırıyor, önemsiz olguları kanona ekliyor.
+- Zanaat puanları neredeyse hep tam; ölçüt olarak ayırt edici değil.
+- Vaat ilerlemesinin kanıtı bazen zayıf.
+- Eşya ve para değişimini editör çıkarıyor; editör kaçırırsa envanter yanlış kalıyor.
+- Ara sıra geçerli yanıt veremiyor; o tur editörsüz geçiyor.
+
+**Ölçüm** (projenin amaçlarından biri)
+- Tur kayıtları tutuluyor, ama kayıtlardan çelişki, sapma, sızıntı ve vaat sayılarını
+  çıkaran bir rapor betiği yok.
+- Editörün kendi doğruluğu elle kontrol edilmedi; editörün bulguları şimdilik "doğru" kabul ediliyor.
+- Bellek seçenekleri (`tam`, `ozet`, `kanon`...) karşılaştırılmadı.
+
+**Kullanım**
+- Web sunucusu tek oyunculu: aynı anda tek oyun açık, tüm sekmeler aynı oyunu görür. Giriş ya
+  da parola yok; yalnızca kendi bilgisayarında çalıştırmak için.
+- Her tur iki model çağrısını sırayla bekliyor (yazar + editör); metin akış hâlinde gelmiyor.
+- Her turda hikâyenin tamamı yeniden gönderiliyor; uzun oyunda maliyet artıyor. İstem
+  önbelleği kullanılmıyor. En uzun test oyunu 24 tur.
+- Yeniden yaz yalnızca son sahne için; sahneyi elle düzenleme ya da birkaç tur geri gitme yok.
+- Dünyalar arayüzden silinemiyor ya da kaydedildikten sonra düzenlenemiyor (YAML dosyası elle düzenlenir).
+- Komut satırı (`oyun.py`) kayıttan devam etmeyi desteklemiyor; bu yalnızca web arayüzünde var.
+- `yerel` arka ucu gerçek bir yerel modelle denenmedi; testler yalnızca sahte modelle çalışıyor.
+- Yalnızca Türkçe. Kök bulma kaba (ilk 5 harf); kısa köklerde getirim kaçırabiliyor.
+
 ## Yol haritası
 
 - [x] Oynanabilir çekirdek, tüm hikâyeyi hatırlayan bellek, kayıt
 - [x] Editör: kanona karşı iddia sınıflama, karakter denetimi, vaat defteri, zanaat notları
-- [x] Kodla denetimler: oyuncu adına konuşma, tanışma, tekrar, örnek replik kopyası
+- [x] Kodla denetimler: oyuncu adına konuşma, tanışma, tekrar, örnek replik kopyası, eşya, para, zaman
+- [x] Web arayüzü, yeniden yaz, yazar modeli seçeneği
+- [x] Dünya kurucu: oyuncu fikrini yazar, model dünyayı kurar
+- [x] Kayıt ve devam
 - [ ] Oturum raporu: bir oyunun kaydından çelişki, sapma, sızıntı ve vaat sayılarını çıkaran betik
-- [ ] İsteğe bağlı: editörün kendi doğruluğunun elle kontrolü; bellek seçeneklerinin karşılaştırılması
+- [ ] Editörün doğruluğunun elle kontrolü (~100 karar)
+- [ ] Editörün en çok hata yaptığı iş için küçük, kendi eğittiğimiz bir model (ör. BERTurk ile
+  çelişki tespiti); ~20-30 oyun ve 200-300 elle düzeltilmiş örnek biriktikten sonra
+- [ ] Maliyet: istem önbelleği, kısa editör çıktısı
+
+## Yapay zekâ kullanımı
+
+Kod, örnek dünya Tuzhan ve `ilkeler/` klasöründeki özetler Claude (Anthropic) ile yazıldı.
+Fikir, yön, test oyunları ve kararlar projenin sahibine ait. Ayrıntılar için
+[docs/PROJE_GUNLUGU.md](docs/PROJE_GUNLUGU.md).

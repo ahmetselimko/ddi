@@ -5,7 +5,7 @@ geliştirildiği sohbetin derli toplu özetidir: nasıl başladığı, hangi kar
 alındığı, test oyunlarında neler görüldüğü ve sırada ne olduğu. Nasıl kurulup
 çalıştırılacağı için [README](../README.md).
 
-Son güncelleme: 27 Eylül 2026 · 86 birim testi · ~6.300 satır
+Son güncelleme: 5 Ekim 2026 · 87 birim testi · ~6.300 satır
 
 ---
 
@@ -120,6 +120,8 @@ Harcamanın çoğu çıktı token'larından geliyor. Ucuzlatma seçenekleri (hen
 
 ## 8. Açık sorunlar
 
+En önemlileri aşağıda; tam ve güncel liste README'deki **Bilinen eksikler** bölümünde.
+
 - **Anlatım bazen bilgi sızdırıyor:** oyuncunun bilmediği akrabalıklar, seçeneklerde henüz duyulmamış ayrıntılar.
 - **Editör gürültülü:** yanlış alarm ("5 + 1 akçe çelişki"), kaçan çelişki, önemsiz olgular; zanaat puanları çoğunlukla 8/8.
 - **Envanter değişikliği editörün fark etmesine bağlı:** bazen kaçıyor.
@@ -153,3 +155,5 @@ nasıl olacağına dair kararlar öğrenciye ait. Commit'lerdeki `Co-Authored-By
 | 26.09 | Yeniden yaz, hafif yazar, yazar modeli seçeneği; 24 turluk testin düzeltmeleri |
 | 27.09 | Dünya kurucu (oyuncu yazar), dünya taslağı (model genişletir) |
 | 27.09 | Kayıt ve devam |
+| 28.09 | `oyun.py` sözdizimi hatası düzeltildi (GitHub'daki dal); giriş dosyalarını derleyen test |
+| 05.10 | Depo herkese açılmaya hazırlandı: README'de bilinen eksikler, kurulum adımı |
