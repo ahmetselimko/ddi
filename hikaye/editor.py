@@ -25,6 +25,7 @@ from .dunya import Dunya
 from .durum import Celiski, Durum, KarakterDegisimi, KarakterSapmasi, envanter_devirleri, envanter_oku
 from .getirim import BM25, belirtecle, kucult, ortusme, tekrarlanan_sozcukler
 from .llm import json_coz
+from .zaman import VAKIT_ADLARI, sure_oku
 
 MODLAR = ("yok", "denetim", "tam")
 ILKE_DOSYASI = Path(__file__).parent.parent / "ilkeler" / "zanaat.yaml"
@@ -167,7 +168,8 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
     sb = veri.get("sahne_bilgisi") if isinstance(veri.get("sahne_bilgisi"), dict) else {}
     sahne_bilgisi = {
         "mekan": sb.get("mekan") if sb.get("mekan") in dunya.mekanlar else None,
-        "zaman": str(sb.get("zaman") or "").strip(),
+        "gecen_dakika": sure_oku(sb.get("gecen_dakika")),
+        "vakit": sb.get("vakit") if sb.get("vakit") in VAKIT_ADLARI else "",
         "karakterler": [k for k in sb.get("karakterler") or [] if k in dunya.karakterler],
         "envanter": envanter_oku(sb.get("envanter")),
         "devirler": envanter_devirleri(sb.get("envanter"), dunya.karakterler),
@@ -183,8 +185,17 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         "karakter_degisimleri": degisimler,
         "zanaat": zanaat,
         "yazar_notu": str(veri.get("yazar_notu") or "").strip(),
+        "eylem": _eylem_oku(veri.get("eylem")),
         "otomatik": otomatik,
     }
+
+
+def _eylem_oku(ham) -> dict:
+    """{"karsilandi": evet|kismen|hayir, "eksik": str}; okunamazsa "evet" (yazara boşuna not gitmesin)."""
+    ham = ham if isinstance(ham, dict) else {}
+    karsilandi = ham.get("karsilandi") if ham.get("karsilandi") in ("evet", "kismen", "hayir") else "evet"
+    eksik = str(ham.get("eksik") or "").strip() if karsilandi != "evet" else ""
+    return {"karsilandi": karsilandi, "eksik": eksik}
 
 
 def _karakter_degisenleri(ham, dunya: Dunya) -> list[dict]:
@@ -260,6 +271,11 @@ class Editor:
 
         for d in bulgular["karakter_degisimleri"]:
             durum.karakter_degisimleri.append(KarakterDegisimi(sahne_no=no, **d))
+        eylem = bulgular.get("eylem") or {}
+        # Yalnızca açık "hayır" yazara not olur; "kısmen" kararları gürültülü (denemede cevaplanmış soruya
+        # "kısmen" dedi), yalnızca ölçüme girer
+        durum.cevapsiz_eylem = ((eylem.get("eksik") or "eylemin sonucu gösterilmedi")
+                                if eylem.get("karsilandi") == "hayir" else "")
         if self.zanaat_acik:
             durum.editor_notu = bulgular["yazar_notu"]
             durum.zanaat_gecmisi.append([z["ilke"] for z in bulgular["zanaat"] if z["sonuc"] == "zayif"])
@@ -286,6 +302,10 @@ class Editor:
             bolumler.append("[KARAKTERLERİN YAŞADIKLARI — tepkileri bunlarla orantılı ve tutarlı olsun]\n"
                             + son_durumlar)
 
+        if durum.cevapsiz_eylem:
+            bolumler.append(f"[DİKKAT — oyuncunun önceki eyleminin şu kısmı cevapsız kaldı; bu sahnede ele al]\n"
+                            f"- {son.eylem}: {durum.cevapsiz_eylem}")
+
         son_celiskiler = [c for c in durum.celiskiler if c.sahne_no == simdiki]
         if son_celiskiler:
             olgular = {o.id: o.metin for o in dunya.sabit_olgular} | {o.id: o.metin for o in durum.olgular}
@@ -310,8 +330,9 @@ class Editor:
 
         # Modele sorulmadan, doğrudan kodla bulunan sorunlar
         # Reddedilen karakter durumu bildirimleri editörün hatasıdır; yazarı yönlendirmez
+        # Konuşmasız sahne için aşağıda ayrı not var; o uyarı yalnızca ölçüm içindir
         kod_uyarilari = [u for u in son.uyarilar if "düzeltildi" not in u
-                         and not u.startswith("karakter durumu reddedildi")]
+                         and not u.startswith(("karakter durumu reddedildi", "sahnede karakter var ama"))]
         konusanlar = {r.karakter for r in son.replikler}
         if son.karakterler and not konusanlar:
             susanlar = ", ".join(dunya.karakterler[k].ad for k in son.karakterler)

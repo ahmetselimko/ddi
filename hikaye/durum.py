@@ -101,6 +101,8 @@ class Durum:
     editor_notu: str = ""
     zanaat_gecmisi: list[list[str]] = field(default_factory=list)   # sahne başına zayıf ölçütler
     karakter_durumlari: dict[str, KarakterDurumu] = field(default_factory=dict)
+    dakika: int | None = None          # oyun saati (zaman.py); None: eski kayıt, zaman etiketinden çıkarılır
+    cevapsiz_eylem: str = ""           # editöre göre oyuncunun son eyleminin cevapsız kalan kısmı
 
     def olgu_ekle(self, metin: str, ilgili: list[str], sahne_no: int) -> OyunOlgusu:
         olgu = OyunOlgusu(id=f"y{len(self.olgular) + 1}", metin=metin,
@@ -141,6 +143,8 @@ def durum_yukle(s: dict) -> Durum:
         editor_notu=s.get("editor_notu", ""),
         zanaat_gecmisi=[list(z) for z in s.get("zanaat_gecmisi", [])],
         karakter_durumlari={k: KarakterDurumu(**v) for k, v in (s.get("karakter_durumlari") or {}).items()},
+        dakika=s.get("dakika"),
+        cevapsiz_eylem=s.get("cevapsiz_eylem", ""),
     )
 
 

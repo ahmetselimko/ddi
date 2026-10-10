@@ -212,7 +212,7 @@ class SahteLLM:
                 {"konusan": k, "replik": "Buradayım."},
             ],
             "mekan": self._mekanlar[n % len(self._mekanlar)],
-            "zaman": f"{n}. gün, akşam",
+            "gecen_dakika": 15,
             "karakterler": [k],
             "yeni_olgular": [{"metin": f"Sahte olgu {n}: körük onarıldı.", "ilgili": [k]}],
             "secenekler": [f"Seçenek {n}.{i}" for i in (1, 2, 3)],

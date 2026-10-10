@@ -191,9 +191,11 @@ class YanitCozmeTesti(unittest.TestCase):
         self.assertEqual(len(secenekler), 2)
         self.assertEqual(len(uyarilar), 1)
 
-    def test_zaman_okunur(self):
-        cozum, _ = yanit_coz(gecerli_yanit(zaman="1. gün, gece"), self.dunya, "han")
-        self.assertEqual(cozum["zaman"], "1. gün, gece")
+    def test_sure_okunur(self):
+        cozum, _ = yanit_coz(gecerli_yanit(gecen_dakika="45"), self.dunya, "han")
+        self.assertEqual(cozum["gecen_dakika"], 45)
+        cozum, _ = yanit_coz(gecerli_yanit(gecen_dakika="biraz"), self.dunya, "han")
+        self.assertIsNone(cozum["gecen_dakika"])
 
     def test_bilinmeyen_konusan_uyari(self):
         metin = gecerli_yanit(akis=[{"konusan": "vezir", "replik": "Selam."}])
@@ -337,12 +339,6 @@ class TestOyunuBulgulariTesti(unittest.TestCase):
         self.assertTrue(any("15 akçe parası var; 20" in n for n in eylem_denetimi("Yirmi akçe teklif et", durum)))
         self.assertEqual(eylem_denetimi("On beş akçe veriyorum", durum), [])     # tam yetiyor
 
-    def test_gun_sayisi_ilerler_ve_geri_gitmez(self):
-        from hikaye.motor import gun_duzelt
-        self.assertEqual(gun_duzelt("1. gün, gece", "1. gün, sabah")[0], "2. gün, sabah")
-        self.assertEqual(gun_duzelt("1. gün, gün batımı", "1. gün, gece"), ("1. gün, gece", None))
-        self.assertEqual(gun_duzelt("3. gün, öğle", "2. gün, akşam")[0], "3. gün, öğle")
-
     def test_imza_karismasi(self):
         metin = gecerli_yanit(akis=[{"konusan": "oruc", "replik": "Kimsin sen evlat?"},
                                     {"konusan": "nehir", "replik": "Otur, evlat."}])
@@ -404,7 +400,7 @@ class HafifYazarTesti(unittest.TestCase):
     def test_hafif_istem_form_alanlari_istemez(self):
         dunya = dunya_yukle(DUNYA_YOLU)
         hafif, tam = sistem_istemi(dunya, hafif=True), sistem_istemi(dunya, hafif=False)
-        for alan in ('"yeni_olgular"', '"envanter"', '"zaman"', '"tanisilan"'):
+        for alan in ('"yeni_olgular"', '"envanter"', '"gecen_dakika"', '"tanisilan"'):
             self.assertNotIn(alan, hafif)
             self.assertIn(alan, tam)
         self.assertIn('"secenekler"', hafif)
@@ -415,15 +411,16 @@ class HafifYazarTesti(unittest.TestCase):
         class SahneBilgisiVerenLLM(SahteLLM):
             def _editor_yaniti(self, n, kullanici):
                 yanit = super()._editor_yaniti(n, kullanici)
-                yanit["sahne_bilgisi"] = {"mekan": "demirhane", "zaman": "2. gün, sabah",
+                yanit["sahne_bilgisi"] = {"mekan": "demirhane", "gecen_dakika": 900,
                                           "karakterler": ["oruc", "vezir"],
                                           "envanter": {"eklenen": ["ip"], "cikan": [], "akce": -5}}
                 return yanit
 
         motor = Motor(dunya, SahneBilgisiVerenLLM(dunya), Bellek("tam"), editor=Editor("denetim"))
         sahne = motor.basla()
-        self.assertEqual((sahne.mekan, sahne.zaman), ("demirhane", "2. gün, sabah"))
-        self.assertEqual((motor.durum.mekan, motor.durum.zaman), ("demirhane", "2. gün, sabah"))
+        # Tuzhan gün batımında (18.00) başlar; 900 dakika yarım güne kırpılır → 2. gün, 06.00
+        self.assertEqual((sahne.mekan, sahne.zaman), ("demirhane", "2. gün, şafak"))
+        self.assertEqual((motor.durum.mekan, motor.durum.zaman), ("demirhane", "2. gün, şafak"))
         self.assertIn("oruc", sahne.karakterler)
         self.assertNotIn("vezir", sahne.karakterler)
         self.assertEqual((motor.durum.esyalar[-1], motor.durum.akce), ("ip", 10))
@@ -712,7 +709,7 @@ class EditorluMotorTesti(unittest.TestCase):
             self.assertEqual(len(durum.karakter_sapmalari), 4)
             self.assertTrue(any(v.cozuldugu_sahne for v in durum.vaatler))
             self.assertTrue(durum.editor_notu)
-            self.assertNotEqual(durum.zaman, dunya.baslangic_zamani)    # zaman ilerledi
+            self.assertGreater(durum.dakika, 18 * 60)                   # saat ilerledi
 
             son = json.loads(kayitci.yol.read_text(encoding="utf-8").splitlines()[-1])
             self.assertGreater(son["baglam"]["editor_bolumleri"], 0)

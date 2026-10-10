@@ -15,6 +15,7 @@ from .dunya import Dunya
 from .durum import (Durum, KarakterDurumu, Replik, Sahne, devir_uygula, durum_yukle, envanter_oku,
                     envanter_uygula, karakter_degisimi_uygula)
 from .editor import Editor
+from .zaman import etiket_dakika, sure_belirle, sure_oku, vakit_adi, vakte_ilerlet
 from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
 from .llm import json_coz
@@ -117,29 +118,6 @@ def secenek_esya_denetimi(secenekler: list[str], durum: Durum) -> list[str]:
 
 
 # ── Zaman: gece ya da akşamdan sabaha geçildiyse gün sayısı artar ──
-_GUN = re.compile(r"(\d+)\.\s*gün")
-_GECE = ("gece", "akşam", "gün batımı", "alacakaranlık", "gece yarısı")
-_SABAH = ("sabah", "şafak", "gün doğumu", "öğle", "kuşluk")
-
-
-def gun_duzelt(onceki: str, yeni: str) -> tuple[str, str | None]:
-    """Model gün sayısını ilerletmeyi unutuyor ("dün gece" diyor ama hâlâ 1. gün).
-    Gece/akşamdan sabaha geçildiyse ve gün aynı kaldıysa bir artırır; zaman geri
-    gidemez. (düzeltilmiş zaman, uyarı ya da None)"""
-    e, y = _GUN.search(onceki or ""), _GUN.search(yeni or "")
-    if not e or not y:
-        return yeni, None
-    eski_gun, yeni_gun = int(e.group(1)), int(y.group(1))
-    if yeni_gun < eski_gun:
-        return onceki, f"zaman geri gidemez: {yeni!r} yerine {onceki!r} korundu"
-    gece_idi = any(s in kucult(onceki) for s in _GECE)
-    sabah_oldu = any(s in kucult(yeni) for s in _SABAH)
-    if yeni_gun == eski_gun and gece_idi and sabah_oldu:
-        duzeltilmis = _GUN.sub(f"{eski_gun + 1}. gün", yeni, count=1)
-        return duzeltilmis, f"gün sayısı ilerletildi: {yeni!r} → {duzeltilmis!r}"
-    return yeni, None
-
-
 def tekrar_secenekleri_ayikla(secenekler: list[str], eylemler: list[str]) -> tuple[list[str], list[str]]:
     """Oyuncunun zaten yaptığı şeyi yeniden öneren seçenekleri atar. Geriye ikiden az
     seçenek kalacaksa hepsini bırakır (oyuncu serbest eylem de yazabilir) ama yine uyarır."""
@@ -350,7 +328,7 @@ def yanit_coz(metin: str, dunya: Dunya, onceki_mekan: str, taninan=(),
     return {
         "sahne": sahne,
         "mekan": mekan,
-        "zaman": str(veri.get("zaman") or "").strip(),
+        "gecen_dakika": sure_oku(veri.get("gecen_dakika")),
         "karakterler": karakterler,
         "replikler": replikler,
         "taninan": taninan,
@@ -376,6 +354,8 @@ class Motor:
         for soru in dunya.vaatler:              # hikâyenin kalbindeki sorular baştan açık
             self.durum.vaat_ac(soru, 0)
         self._karakter_durumlarini_tamamla()
+        self.durum.dakika = etiket_dakika(dunya.baslangic_zamani)
+        self.durum.zaman = vakit_adi(self.durum.dakika)
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
         self._tur_oncesi: tuple[Durum, str | None] | None = None   # "yeniden yaz" için
@@ -391,6 +371,8 @@ class Motor:
         """kaydedilecek() çıktısından oyunu geri kurar; "yeniden yaz" da çalışmaya devam eder."""
         self.durum = durum_yukle(veri["durum"])
         self._karakter_durumlarini_tamamla()     # eski kayıtlarda alan yok: dünyadan başlar
+        if self.durum.dakika is None:             # saatten önceki kayıt: etiketten çıkar
+            self.durum.dakika = etiket_dakika(self.durum.zaman)
         onceki = veri.get("tur_oncesi")
         self._tur_oncesi = (durum_yukle(onceki["durum"]), onceki["eylem"]) if onceki else None
         self.son_bulgular = veri.get("son_bulgular")
@@ -473,7 +455,7 @@ class Motor:
             karakterler=cozum["karakterler"] or konusanlar,
             replikler=cozum["replikler"],
             secenekler=cozum["secenekler"],
-            zaman=cozum["zaman"] or self.durum.zaman,
+            zaman=self.durum.zaman,                    # saat aşağıda kodla ilerletilir
             uyarilar=uyarilar,
         )
         self.durum.sahneler.append(sahne)
@@ -490,16 +472,20 @@ class Motor:
         if self.son_bulgular is not None:
             sb = self.son_bulgular["sahne_bilgisi"]
             sahne.mekan = sb["mekan"] or sahne.mekan
-            sahne.zaman = sb["zaman"] or sahne.zaman
             if sb["karakterler"]:
                 sahne.karakterler = list(dict.fromkeys(sb["karakterler"] + konusanlar))
             envanter = sb["envanter"]
         else:
             for m, ilgili in cozum["yeni_olgular"]:
                 self.durum.olgu_ekle(m, ilgili, no)
-        sahne.zaman, zaman_uyarisi = gun_duzelt(self.durum.zaman, sahne.zaman)
-        if zaman_uyarisi:
-            uyarilar.append(zaman_uyarisi)
+        # Saat kodda: model yalnızca sahnenin süresini tahmin eder (editör açıksa editör)
+        bildirilen = self.son_bulgular["sahne_bilgisi"]["gecen_dakika"] if self.son_bulgular else cozum["gecen_dakika"]
+        self.durum.dakika += sure_belirle(bildirilen, mekan_degisti=sahne.mekan != self.durum.mekan)
+        if self.son_bulgular:               # anlatım vakti açıkça söylediyse ("sabahın ilk ışıkları")
+            self.durum.dakika = vakte_ilerlet(self.durum.dakika, self.son_bulgular["sahne_bilgisi"].get("vakit", ""))
+        sahne.zaman = vakit_adi(self.durum.dakika)
+        if sahne.karakterler and not sahne.replikler:
+            uyarilar.append("sahnede karakter var ama kimse konuşmadı")
         uyarilar.extend(f"eylem denetimi: {n}" for n in eylem_notlari)
         self.durum.mekan, self.durum.zaman = sahne.mekan, sahne.zaman
         oyuncunun_onceki = list(self.durum.esyalar)

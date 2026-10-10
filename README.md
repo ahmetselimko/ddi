@@ -73,7 +73,9 @@ Bazı sorunları modele sormak yerine kod her seferinde aynı şekilde yakalar. 
 | Bilinmeyen id | Dünyada olmayan karakter/mekân uydurulursa uyarı; konuşan adındaki küçük yazım kaymaları düzeltilir |
 | Eylem ön denetimi | Eylemde geçen ama oyuncuda olmayan eşya (kılıç, ip, fener... Türkçe/İngilizce), daha önce elden çıkmış eşya ya da parasını aşan ödeme: yazara eylemin hemen önünde kesin not |
 | Eşya ve akçe | Oyuncunun üzerindekiler takip edilir; olmayan eşya çıkarılamaz, yetmeyen akçe ödenemez; olmayan eşyayı kullanan seçenek uyarı üretir |
-| Zaman | Gece/akşamdan sabaha geçilince gün sayısı ilerler; zaman geri gidemez |
+| Zaman | Saati kod tutar (oyun başından beri dakika). Editör her sahnenin süresini tahmin eder (yürüme, bekleme, uyku dahil); kod süreyi sınırlar (yer değiştiyse en az 10 dk, en fazla yarım gün), vakit adını ve gün sayısını kendisi çıkarır. Anlatım vakti açıkça söylerse ("sabahın ilk ışıkları") saat o vakte ileri sarılır. Zaman geri gitmez. Saat rakamı yazara gitmez, yalnızca vakit adı |
+| Eylem | Yazara oyuncunun eyleminin hemen ardından "önce bu eylemi sonuçlandır; soruysa cevap versin" hatırlatması gider. Editör eylemin karşılanıp karşılanmadığını değerlendirir; açık "hayır"da bir sonraki tura not gider, "kısmen" yalnızca ölçülür |
+| Konuşmasız sahne | Karakter var ama replik yoksa yazara not gider ve ölçüm için kaydedilir |
 | Ses karışması | Bir karakter başka birinin imza sözünü (Nehir'in "evlat"ı) kullanırsa uyarı |
 
 ## Editör

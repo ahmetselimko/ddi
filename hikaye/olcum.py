@@ -41,6 +41,7 @@ UYARI_TURLERI = [
     ("envanter uyuşmazlığı", ("envanter uyuşmazlığı",)),
     ("zaman", ("zaman geri gidemez",)),
     ("karakter durumu", ("karakter durumu reddedildi",)),
+    ("konuşmasız sahne", ("sahnede karakter var ama",)),
     ("biçim", ("bilinmeyen", "konuşan id'si", "akış yerine", "replikte bilinmeyen")),
 ]
 
@@ -156,6 +157,7 @@ class OturumOzeti:
     uyarilar: Counter = field(default_factory=Counter)
     editor_basarisiz: int = 0
     otomatik: Counter = field(default_factory=Counter)
+    eylem: Counter = field(default_factory=Counter)       # editöre göre eylem karşılandı mı
     girdi: int = 0
     cikti: int = 0
     dolar: float = 0.0
@@ -188,6 +190,8 @@ def oturum_ozeti(yol: Path) -> OturumOzeti | None:
             o.oyuncu_sizintisi += bool(e.get("oyuncu_bilgi_sizintisi"))
             for k, v in (e.get("otomatik") or {}).items():
                 o.otomatik[k] += len(v)
+            if t.get("eylem") and isinstance(e.get("eylem"), dict):
+                o.eylem[e["eylem"].get("karsilandi", "?")] += 1
         o.editor_basarisiz += bool(t.get("editor_basarisiz"))
         for u in t.get("uyarilar") or []:
             o.uyarilar[uyari_turu(u)] += 1
@@ -231,6 +235,10 @@ def rapor(yollar: list[Path]) -> str:
         if sapma:
             s.append("- Karakter sapmaları: " + ", ".join(f"{_SAPMA_ADLARI[k]} {v}" for k, v in sapma.most_common()))
         s.append(f"- Oyuncuya bilgi sızıntısı: {sum(o.oyuncu_sizintisi for o in editorlu)}")
+        eylem = sum((o.eylem for o in editorlu), Counter())
+        if eylem:
+            s.append("- Oyuncunun eylemi karşılandı mı (editöre göre): "
+                     + ", ".join(f"{k} {eylem[k]}" for k in ("evet", "kismen", "hayir") if eylem[k]))
         otomatik = sum((o.otomatik for o in editorlu), Counter())
         if otomatik:
             s.append("- Kodun editörü düzelttiği yerler: "
