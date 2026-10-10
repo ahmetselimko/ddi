@@ -53,7 +53,6 @@ class Celiski:
     sahne_no: int
     iddia: str
     olgu_id: str
-    alinti: str = ""           # sahneden çelişen cümle (editör göstermek zorunda)
 
 
 @dataclass
@@ -83,7 +82,6 @@ class Durum:
     esyalar: list[str] = field(default_factory=list)   # oyuncunun üzerindekiler
     akce: int = 0
     elden_cikanlar: list[str] = field(default_factory=list)   # verilen/kaybedilen eşyalar
-    ogrenilen: list[str] = field(default_factory=list)   # oyuncunun öğrendiği dünya olgularının id'leri
     # Editör açıkken dolanlar
     vaatler: list[Vaat] = field(default_factory=list)
     celiskiler: list[Celiski] = field(default_factory=list)
@@ -124,7 +122,6 @@ def durum_yukle(s: dict) -> Durum:
         esyalar=list(s.get("esyalar", [])),
         akce=s.get("akce", 0),
         elden_cikanlar=list(s.get("elden_cikanlar", [])),
-        ogrenilen=list(s.get("ogrenilen", [])),
         vaatler=[Vaat(**v) for v in s.get("vaatler", [])],
         celiskiler=[Celiski(**c) for c in s.get("celiskiler", [])],
         karakter_degisimleri=[KarakterDegisimi(**d) for d in s.get("karakter_degisimleri", [])],
@@ -159,33 +156,6 @@ def envanter_oku(ham) -> dict:
     except (TypeError, ValueError):
         akce = 0
     return {"eklenen": liste("eklenen"), "cikan": liste("cikan"), "akce": akce}
-
-
-def envanter_bos(envanter: dict) -> bool:
-    return not (envanter["eklenen"] or envanter["cikan"] or envanter["akce"])
-
-
-def envanter_esit(a: dict, b: dict) -> bool:
-    """İki bildirim aynı değişikliği mi söylüyor (eşya adlarındaki küçük farklar önemsiz)."""
-    def ayni_liste(x, y):
-        return len(x) == len(y) and all(any(_ayni_esya(i, j) for j in y) for i in x)
-    return a["akce"] == b["akce"] and ayni_liste(a["eklenen"], b["eklenen"]) and ayni_liste(a["cikan"], b["cikan"])
-
-
-def envanter_dogrula(durum: Durum, envanter: dict) -> list[str]:
-    """Durumu değiştirmeden denetler: üzerinde olmayan eşya çıkamaz, sahip olunandan fazla
-    para ödenemez. Yazarın bildirimi bu denetimi geçmezse yazardan düzeltmesi istenir."""
-    hatalar = []
-    kalan = list(durum.esyalar)
-    for esya in envanter["cikan"]:
-        eslesen = _en_benzeyen(kalan, esya)
-        if eslesen:
-            kalan.remove(eslesen)
-        else:
-            hatalar.append(f"oyuncunun üzerinde \"{esya}\" yok, elinden çıkamaz")
-    if durum.akce + envanter["akce"] < 0:
-        hatalar.append(f"oyuncunun {durum.akce} parası var, {-envanter['akce']} ödeyemez")
-    return hatalar
 
 
 def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:

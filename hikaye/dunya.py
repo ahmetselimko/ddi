@@ -71,12 +71,6 @@ class Olgu:
     id: str
     metin: str
     ilgili: list[str] = field(default_factory=list)   # karakter / mekân id'leri
-    # Kim biliyor: karakter id'leri, "herkes" (kasabalılar; varsayılan) ve "oyuncu" (oyuncu
-    # oyuna bunu bilerek başlar). Oyuncu bilmediği olguyu ancak biri söyleyince ya da görünce öğrenir.
-    bilen: list[str] = field(default_factory=lambda: ["herkes"])
-
-    def bilir(self, karakter: str) -> bool:
-        return "herkes" in self.bilen or karakter in self.bilen
 
 
 @dataclass
@@ -136,17 +130,6 @@ class Dunya:
         """ilgili alanı verilen karakter/mekân id'lerinden birini içeren sabit olgular."""
         idler = set(idler)
         return [o for o in self.olgular + [self.acilis] if idler & set(o.ilgili)]
-
-    def bilgi_etiketi(self, olgu_id: str, ogrenilen) -> str:
-        """Yazara ve editöre giden olgu satırının sonuna: oyuncu bunu bilmiyorsa ya da olgu
-        gizliyse. Oyun sırasında kesinleşen olgular sahnede yaşandığı için etiketsizdir."""
-        olgu = next((o for o in self.olgular if o.id == olgu_id), None)
-        if olgu is None or olgu_id in ogrenilen or "oyuncu" in olgu.bilen:
-            return ""
-        if "herkes" in olgu.bilen:
-            return " (oyuncu bilmiyor)"
-        kim = ", ".join(self.karakterler[k].ad for k in olgu.bilen if k in self.karakterler)
-        return f" (gizli: yalnızca {kim} bilir; oyuncu bilmiyor)"
 
     def adi_gecenler(self, metin: str, haric=()) -> list[str]:
         """Metinde özel adı (adlar alanı) geçen karakterlerin id'leri; haric dışındakiler.
@@ -211,8 +194,3 @@ def _dogrula(dunya: Dunya) -> None:
         tanimsiz = [i for i in o.ilgili if i not in bilinen]
         if tanimsiz:
             raise DunyaHatasi(f"{o.id} olgusunda tanımsız id: {', '.join(tanimsiz)}")
-        if not isinstance(o.bilen, list) or not o.bilen:
-            raise DunyaHatasi(f"{o.id} olgusunun bilen alanı boş olmayan bir liste olmalı")
-        tanimsiz = [i for i in o.bilen if i not in dunya.karakterler and i not in ("herkes", "oyuncu")]
-        if tanimsiz:
-            raise DunyaHatasi(f"{o.id} olgusunun bilen alanında tanımsız id: {', '.join(map(str, tanimsiz))}")

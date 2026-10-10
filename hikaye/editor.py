@@ -80,9 +80,7 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         raise EditorHatasi(str(e)) from e
 
     otomatik = {"yeniden_siniflanan": [], "atilan_tahmin": [], "atilan_tur": [], "fazla_olgu": [],
-                "tekrar_vaat": [], "kanitsiz_vaat": [], "fazla_ilerleme": [], "alintisiz_celiski": [],
-                "yalan_sayilan": [], "kod_sizinti": []}
-    sahne_metni = durum.sahneler[-1].metin if durum.sahneler else ""
+                "tekrar_vaat": [], "kanitsiz_vaat": [], "fazla_ilerleme": []}
     bilinen = set(dunya.karakterler) | set(dunya.mekanlar)
     olgu_idleri = {o.id for o in dunya.sabit_olgular} | {o.id for o in durum.olgular}
     kanon = _kanon_metinleri(dunya, durum)
@@ -98,14 +96,6 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         olgu = i.get("olgu") if i.get("olgu") in olgu_idleri else None
         if durum_ == "celisiyor" and olgu is None:
             continue                        # neyle çeliştiği belli olmayan çelişki sayılmaz
-        alinti = str(i.get("alinti") or "").strip()
-        if durum_ == "celisiyor":
-            if not alinti_sahnede(alinti, sahne_metni):
-                otomatik["alintisiz_celiski"].append(metin_)
-                continue                    # sahnede gösterilemeyen çelişki sayılmaz
-            if i.get("kaynak") == "karakter_sozu" and i.get("yalan_olabilir") is True:
-                otomatik["yalan_sayilan"].append(metin_)
-                continue                    # kişiliğine uygun bir yalan kanonla çelişki değildir
         if durum_ == "yeni":
             if i.get("tur") in _KANONA_GIRMEYEN_TURLER:
                 otomatik["atilan_tur"].append(metin_)
@@ -125,7 +115,6 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
             "durum": durum_,
             "olgu": olgu,
             "ilgili": [x for x in i.get("ilgili") or [] if x in bilinen],
-            "alinti": alinti if durum_ == "celisiyor" else "",
         })
 
     acik = {v.id: v.metin for v in durum.acik_vaatler}
@@ -175,29 +164,6 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         if isinstance(z, dict) and z.get("ilke") and z.get("sonuc") in ("iyi", "zayif")
     ]
 
-    # Oyuncunun öğrendikleri; söyleyen karakter bunu bilemiyorsa kod sızıntı sayar
-    dunya_olgulari = {o.id: o for o in dunya.olgular}
-    ogrenilen = []
-    for x in veri.get("ogrenilen") or []:
-        if not isinstance(x, dict) or x.get("olgu") not in dunya_olgulari:
-            continue
-        oid, kaynak = x["olgu"], x.get("kaynak")
-        if oid in durum.ogrenilen or oid in [o["olgu"] for o in ogrenilen]:
-            continue
-        kaynak = kaynak if kaynak in dunya.karakterler else "gozlem"
-        ogrenilen.append({"olgu": oid, "kaynak": kaynak})
-        if kaynak != "gozlem" and not dunya_olgulari[oid].bilir(kaynak):
-            otomatik["kod_sizinti"].append(f"{kaynak}:{oid}")
-            gerekce = (f"{dunya.karakterler[kaynak].ad}, bilemeyeceği bir şeyi söyledi: "
-                       f"{dunya_olgulari[oid].metin}")
-            mevcut = next((d for d in karakter_denetimi if d["karakter"] == kaynak), None)
-            if mevcut is None:
-                karakter_denetimi.append({"karakter": kaynak, "gerekce": gerekce, "kisilik": "uygun",
-                                          "konusma": "uygun", "bilgi": "sizinti"})
-            else:
-                mevcut["bilgi"] = "sizinti"
-                mevcut["gerekce"] = " ".join(x for x in (mevcut["gerekce"], gerekce) if x)
-
     sb = veri.get("sahne_bilgisi") if isinstance(veri.get("sahne_bilgisi"), dict) else {}
     sahne_bilgisi = {
         "mekan": sb.get("mekan") if sb.get("mekan") in dunya.mekanlar else None,
@@ -215,22 +181,8 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         "karakter_degisimleri": degisimler,
         "zanaat": zanaat,
         "yazar_notu": str(veri.get("yazar_notu") or "").strip(),
-        "ogrenilen": ogrenilen,
         "otomatik": otomatik,
     }
-
-
-def alinti_sahnede(alinti: str, sahne_metni: str) -> bool:
-    """Editörün alıntısı sahnede gerçekten geçiyor mu: harf/boşluk farkları önemsiz; ya
-    sahnenin bir parçası ya da bir cümlesiyle köklerin %80'i örtüşüyor."""
-    sade = lambda m: " ".join(re.sub(r"[^\w\s]", " ", kucult(m)).split())   # noqa: E731
-    a = sade(alinti)
-    if len(a.split()) < 3:
-        return False
-    if a in sade(sahne_metni):
-        return True
-    cumleler = re.split(r"(?<=[.!?…])\s+|\n", sahne_metni)
-    return any(ortusme(alinti, c) >= 0.8 for c in cumleler if c.strip())
 
 
 class Editor:
@@ -272,9 +224,7 @@ class Editor:
             if i["durum"] == "yeni":
                 durum.olgu_ekle(i["metin"], i["ilgili"], no)
             elif i["durum"] == "celisiyor":
-                durum.celiskiler.append(Celiski(sahne_no=no, iddia=i["metin"], olgu_id=i["olgu"],
-                                                alinti=i.get("alinti", "")))
-        durum.ogrenilen.extend(x["olgu"] for x in bulgular.get("ogrenilen", []))
+                durum.celiskiler.append(Celiski(sahne_no=no, iddia=i["metin"], olgu_id=i["olgu"]))
 
         vaatler = {v.id: v for v in durum.vaatler}
         for x in bulgular["vaatler"]["ilerleyen"]:
@@ -326,7 +276,7 @@ class Editor:
             olgular = {o.id: o.metin for o in dunya.sabit_olgular} | {o.id: o.metin for o in durum.olgular}
             bolumler.append(
                 "[DİKKAT — son sahne şu olgularla çelişti; bundan sonra olgulara uy]\n"
-                + "\n".join(f'- Yazılan: "{c.alinti or c.iddia}" · Doğrusu: {olgular.get(c.olgu_id, c.olgu_id)}'
+                + "\n".join(f'- Yazılan: "{c.iddia}" · Doğrusu: {olgular.get(c.olgu_id, c.olgu_id)}'
                             for c in son_celiskiler)
             )
 
@@ -344,9 +294,7 @@ class Editor:
             bolumler.append("[KARAKTER UYARISI — son sahnede kartından saptı]\n" + "\n".join(satirlar))
 
         # Modele sorulmadan, doğrudan kodla bulunan sorunlar
-        # Envanter uyuşmazlığı yalnızca ölçüm içindir; yazarı yönlendirmez
-        kod_uyarilari = [u for u in son.uyarilar if "düzeltildi" not in u
-                         and not u.startswith("envanter uyuşmazlığı")]
+        kod_uyarilari = [u for u in son.uyarilar if "düzeltildi" not in u]
         konusanlar = {r.karakter for r in son.replikler}
         if son.karakterler and not konusanlar:
             susanlar = ", ".join(dunya.karakterler[k].ad for k in son.karakterler)

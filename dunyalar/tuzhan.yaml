@@ -163,8 +163,6 @@ karakterler:
     ornek_replikler:
       - "Neden soruyorsun, sevgili dostum? Cevabı zaten bilmiyor musun?"
 
-# bilen: kim biliyor. Yazılmazsa kasabalılar bilir ama oyuncu bilmez (biri söyleyene kadar).
-# "oyuncu": oyuncu oyuna bunu bilerek başlar. Yalnızca karakter id'leri: sır.
 olgular:
   - id: o1
     metin: Hanın üst katında on iki oda var. Yedi numaralı oda her zaman kilitli; anahtarı yalnızca Nehir Hanım'da.
@@ -175,7 +173,6 @@ olgular:
   - id: o3
     metin: Sarıca kervanı kırk gün önce Tuzhan'dan doğuya, tuz gölünün ötesine doğru yola çıktı ve bir daha haber alınmadı. Kervanda on bir deve ve altı kişi vardı.
     ilgili: [tuz_golu]
-    bilen: [oyuncu, herkes]
   - id: o4
     metin: Kervanlar normalde her on günde bir Tuzhan'a uğrar; kırk gündür tek bir kervan gelmedi.
     ilgili: [han]
@@ -191,11 +188,9 @@ olgular:
   - id: o8
     metin: Yabancı iki gün önce geldi, adını kimseye söylemedi. Yedi numaralı odayı istedi ama Nehir Hanım vermedi.
     ilgili: [yabanci, nehir, han]
-    bilen: [yabanci, nehir]
   - id: o9
     metin: Selvi kayıt defterlerini kâtiplikte kilitli bir sandıkta saklıyor; sandığın anahtarı boynunda asılı.
     ilgili: [selvi, katiplik]
-    bilen: [selvi]
   - id: o10
     metin: Kulenin merdiveni yarıda çökük; tepeye ancak iple çıkılabilir.
     ilgili: [kule]
@@ -208,8 +203,6 @@ olgular:
   - id: o13
     metin: Selvi, Sarıca kervanının kâhyası Yusuf'un kuzeni.
     ilgili: [selvi]
-    bilen: [selvi]
   - id: o14
     metin: Oruç gençliğinde kervan muhafızıydı; tuz gölünü bir kez geçmiş ama o yolculuktan hiç söz etmez.
     ilgili: [oruc, tuz_golu]
-    bilen: [oruc]

@@ -12,8 +12,7 @@ from dataclasses import asdict
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
-from .durum import (Durum, Replik, Sahne, durum_yukle, envanter_bos, envanter_dogrula, envanter_esit,
-                    envanter_oku, envanter_uygula)
+from .durum import Durum, Replik, Sahne, durum_yukle, envanter_oku, envanter_uygula
 from .editor import Editor
 from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
@@ -375,7 +374,6 @@ class Motor:
                            esyalar=list(dunya.oyuncu_esyalar), akce=dunya.oyuncu_akce)
         for soru in dunya.vaatler:              # hikâyenin kalbindeki sorular baştan açık
             self.durum.vaat_ac(soru, 0)
-        self.durum.ogrenilen = [o.id for o in dunya.olgular if "oyuncu" in o.bilen]
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
         self._tur_oncesi: tuple[Durum, str | None] | None = None   # "yeniden yaz" için
@@ -436,26 +434,17 @@ class Motor:
 
         yanitlar, hatalar = [], []
         istek = kullanici
-        for deneme_no in range(self.deneme):
+        for _ in range(self.deneme):
             yanit = self.llm.uret(sistem, istek)
             yanitlar.append(yanit)
             try:
                 onceki_metin = self.durum.sahneler[-1].metin if self.durum.sahneler else ""
                 cozum, uyarilar = yanit_coz(yanit.metin, self.dunya, self.durum.mekan,
                                             self.durum.taninan, onceki_metin, hafif=hafif)
+                break
             except YanitHatasi as e:
                 hatalar.append(str(e))
                 istek = f"{kullanici}\n\nÖnceki yanıtın geçersizdi ({e}). Yalnızca istenen JSON'u döndür."
-                continue
-            # Yazarın envanter bildirimi kodla denetlenir; geçmezse (deneme hakkı varsa) düzelttirilir
-            envanter_hatalari = envanter_dogrula(self.durum, cozum["envanter"])
-            if envanter_hatalari and deneme_no < self.deneme - 1:
-                hatalar.append("envanter: " + "; ".join(envanter_hatalari))
-                istek = (f"{kullanici}\n\nÖnceki yanıtın envanteri geçersizdi: {'; '.join(envanter_hatalari)}. "
-                         "Oyuncu üzerinde olmayanı kullanamaz ve parasından fazlasını ödeyemez; sahneyi ve "
-                         "envanteri buna göre yeniden yaz.")
-                continue
-            break
         else:
             raise YanitHatasi(f"Model {self.deneme} denemede geçerli yanıt vermedi: {hatalar}")
 
@@ -487,7 +476,6 @@ class Motor:
         self.son_bulgular, editor_yanitlari = None, []
         if self.editor:
             self.son_bulgular, editor_yanitlari = self.editor.denetle(self.dunya, self.durum, self.editor_llm)
-        # Envanterde öncelik yazarın bildiriminde (kod denetledi); editörünki ikinci sinyal
         envanter = cozum["envanter"]
         if self.son_bulgular is not None:
             sb = self.son_bulgular["sahne_bilgisi"]
@@ -495,11 +483,7 @@ class Motor:
             sahne.zaman = sb["zaman"] or sahne.zaman
             if sb["karakterler"]:
                 sahne.karakterler = list(dict.fromkeys(sb["karakterler"] + konusanlar))
-            if not envanter_esit(envanter, sb["envanter"]):
-                uyarilar.append(f"envanter uyuşmazlığı: yazar {_envanter_metni(envanter)} / "
-                                f"editör {_envanter_metni(sb['envanter'])}")
-                if envanter_bos(envanter):        # yazar bildirmeyi unuttuysa editörünki
-                    envanter = sb["envanter"]
+            envanter = sb["envanter"]
         else:
             for m, ilgili in cozum["yeni_olgular"]:
                 self.durum.olgu_ekle(m, ilgili, no)
@@ -550,13 +534,6 @@ class Motor:
                 sure=round(sum(c.sure for c in cagrilar), 2),
             )
         return sahne
-
-
-def _envanter_metni(e: dict) -> str:
-    parcalar = [f"+{x}" for x in e["eklenen"]] + [f"-{x}" for x in e["cikan"]]
-    if e["akce"]:
-        parcalar.append(f"{e['akce']:+d} para")
-    return ", ".join(parcalar) or "değişiklik yok"
 
 
 def _topla(sayilar) -> int | None:

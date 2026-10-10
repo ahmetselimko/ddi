@@ -64,7 +64,6 @@ class Bellek:
         if self.kanon_acik:
             sorgu = " ".join([eylem or dunya.giris] + [s.metin for s in son[-1:]])
             getirilen = _olgu_getir(dunya, durum, sorgu, self.olgu_k)
-            getirilen = ([m + dunya.bilgi_etiketi(i, durum.ogrenilen) for m, i in zip(*getirilen)], getirilen[1])
             secilen = [(m, i) for m, i in zip(*getirilen) if i not in odak_idleri]
             olgular, olgu_idleri = [m for m, _ in secilen], [i for _, i in secilen]
 
@@ -75,7 +74,7 @@ class Bellek:
             son_sahneler=[istem.sahne_metni(s, dunya) for s in son],
             olgu_idleri=olgu_idleri,
             karakter_idleri=karakter_idleri,
-            odak_olgular=[f"[{o.id}] {o.metin}{dunya.bilgi_etiketi(o.id, durum.ogrenilen)}" for o in odak],
+            odak_olgular=[f"[{o.id}] {o.metin}" for o in odak],
         )
 
     def sahne_sonrasi(self, dunya: Dunya, durum: Durum, llm):

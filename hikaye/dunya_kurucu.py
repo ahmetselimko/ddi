@@ -162,12 +162,10 @@ def cevaplardan_dunya(c: dict) -> dict:
             karakter["yer"] = mekan_bul(k.get("yer"))
         karakterler.append(karakter)
         if str(k.get("sir") or "").strip():
-            sir_olgulari.append((f"{k['ad'].strip()} hakkında (henüz kimse bilmiyor): {k['sir'].strip()}",
-                                 [kid], [kid]))
+            sir_olgulari.append((f"{k['ad'].strip()} hakkında (henüz kimse bilmiyor): {k['sir'].strip()}", [kid]))
 
     # Kanon: kesin gerçekler + karakter sırları; ilgili alanı sonra metinden çıkarılır
-    # (metin, ilgili, bilen): sırları yalnızca sahibi bilir; diğer gerçekleri kasabalılar
-    gercekler = [(g, [], None) for g in _satirlar(c.get("gercekler"))] + sir_olgulari
+    gercekler = [(g, []) for g in _satirlar(c.get("gercekler"))] + sir_olgulari
 
     kurallar = _satirlar(c.get("yoklar"))
     if str(c.get("donem") or "").strip():
@@ -209,12 +207,9 @@ def cevaplardan_dunya(c: dict) -> dict:
     gecici = Dunya(ad=ad, ton="", oyuncu="", giris="", baslangic_mekan=baslangic,
                    karakterler={k["id"]: Karakter(**k) for k in karakterler},
                    mekanlar={m["id"]: Mekan(**m) for m in mekanlar}, olgular=[])
-    for i, (metin, ilgili, bilen) in enumerate(gercekler, 1):
+    for i, (metin, ilgili) in enumerate(gercekler, 1):
         baglar = list(dict.fromkeys(ilgili + gecici.adi_gecenler(metin) + gecici.adi_gecen_mekanlar(metin)))
-        olgu = {"id": f"o{i}", "metin": metin, "ilgili": baglar}
-        if bilen:
-            olgu["bilen"] = bilen
-        sonuc["olgular"].append(olgu)
+        sonuc["olgular"].append({"id": f"o{i}", "metin": metin, "ilgili": baglar})
     return sonuc
 
 
