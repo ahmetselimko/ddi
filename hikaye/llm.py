@@ -49,6 +49,21 @@ def env_yukle(yol: Path) -> None:
         os.environ.setdefault(anahtar.strip(), deger.strip().strip("\"'"))
 
 
+# Ücretli katman, metin, 1M token başına dolar (girdi, çıktı). Kaynak: ai.google.dev/gemini-api/docs/pricing
+FIYATLAR = {
+    "gemini-2.5-flash": (0.30, 2.50),
+    "gemini-2.5-flash-lite": (0.10, 0.40),
+    "gemini-3.1-flash-lite": (0.25, 1.50),
+    "gemini-3.8-flash": (0.75, 3.75),     # 31.12.2026'ya kadar geçerli fiyat
+}
+
+
+def dolar(model_adi: str, girdi: int, cikti: int) -> float | None:
+    """Tahmini maliyet; fiyatı bilinmeyen modelde None. model_adi "gemini:..." önekli olabilir."""
+    fiyat = FIYATLAR.get(model_adi.split(":", 1)[-1])
+    return girdi * fiyat[0] / 1e6 + cikti * fiyat[1] / 1e6 if fiyat else None
+
+
 # Yazar modeli seçenekleri. Editör ve özet her zaman temel (hızlı) modeli kullanır.
 # model None: .env'deki GEMINI_MODEL. dusunme: düşünme bütçesi (token); None: modelin varsayılanı.
 YAZAR_SECENEKLERI = {
@@ -181,6 +196,9 @@ class SahteLLM:
             return LLMYanit(metin=json.dumps(self._editor_yaniti(n, kullanici), ensure_ascii=False), sure=0.0)
         if "dünya tasarlayan" in sistem:
             return LLMYanit(metin=json.dumps(self.DUNYA_TASLAGI, ensure_ascii=False), sure=0.0)
+        if "çelişki cümlesi yazarısın" in sistem:
+            return LLMYanit(metin=json.dumps({"cumle": f"Kervanda yalnızca iki deve vardı {n}."},
+                                             ensure_ascii=False), sure=0.0)
         if "manga sahne planlayıcısısın" in sistem:
             return LLMYanit(metin=json.dumps(self._manga_plani(kullanici), ensure_ascii=False), sure=0.0)
         if "görsel etiket yazarısın" in sistem:
@@ -225,6 +243,13 @@ class SahteLLM:
     SORULAR = ["Kuyu neden kurudu?", "Kulede kim yaşıyor?", "Mavi ışıklar nereden geliyor?",
                "Kâhyanın mektubu nerede?", "Pazar yeri niçin kapandı?", "Eski harita kimin elinde?"]
 
+    @staticmethod
+    def _ilk_satir(kullanici: str) -> str:
+        """Denetlenen sahnenin ilk satırı: sahte çelişkinin alıntısı sahnede gerçekten geçsin."""
+        e = re.search(r"\[DENETLENECEK SAHNE[^\n]*\n(?:Oyuncunun eylemi:[^\n]*\n|\(Açılış sahnesi\)\n)([^\n]+)",
+                      kullanici)
+        return e.group(1).strip() if e else ""
+
     def _editor_yaniti(self, n: int, kullanici: str) -> dict:
         """Her editör çağrısında: bir yeni iddia, bir çelişki, bir yeni vaat, bir karakter
         sapması; açık bir vaat varsa onu çözer."""
@@ -234,7 +259,8 @@ class SahteLLM:
         yanit = {
             "iddialar": [
                 {"metin": self.YENI_OLGULAR[i % len(self.YENI_OLGULAR)], "durum": "yeni", "olgu": None, "ilgili": []},
-                {"metin": f"Sahte çelişki {n}", "durum": "celisiyor", "olgu": self._olgular[0], "ilgili": []},
+                {"metin": f"Sahte çelişki {n}", "durum": "celisiyor", "olgu": self._olgular[0], "ilgili": [],
+                 "alinti": self._ilk_satir(kullanici), "kaynak": "anlatim"},
             ],
             "vaatler": {
                 "acilan": [self.SORULAR[i % len(self.SORULAR)]],

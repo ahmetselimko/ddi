@@ -78,8 +78,13 @@ _BICIM_HAFIF = """{
     {"konusan": "karakter id'si", "replik": "söylenen söz, tırnaksız"},
     {"anlatim": "anlatım paragrafı"}
   ],
+  "envanter": {"eklenen": [], "cikan": [], "akce": 0},
   "secenekler": ["oyuncunun yapabileceği birbirinden farklı 3 şey"]
 }
+
+envanter: bu sahnede oyuncunun ÜZERİNDEKİLERDE olan değişiklik: eline geçen, elinden çıkan eşyalar
+ve para değişimi (ödediyse eksi). Değişiklik yoksa boş listeler ve 0. Kod bunu denetler: üzerinde
+olmayan bir eşya elinden çıkamaz, parasından fazlasını ödeyemez.
 
 """ + _AKIS_ACIKLAMASI
 
@@ -107,6 +112,14 @@ aldıysa artı). Değişiklik yoksa boş listeler ve 0.
 yeni_olgular: bu sahnede hikâyede KESİNLEŞEN kalıcı gerçekler (0-3 adet): biri bir sır açıkladı,
 bir eşya el değiştirdi, bir yer keşfedildi, bir söz verildi. Tahmin, ima ya da şüphe yazma
 ("X bir şey biliyor olabilir" olgu değildir). Zaten bilineni tekrar yazma."""
+
+_BILGI_ACIKLAMASI = (
+    "[OLGULARDAKİ BİLGİ ETİKETLERİ] \"(oyuncu bilmiyor)\": dünyada doğru, karakterler bilir ve "
+    "söyleyebilir; ama biri söyleyene ya da oyuncu görene kadar anlatım ve seçenekler bunu oyuncu "
+    "biliyormuş gibi kullanmaz (ör. iki karakterin akraba olduğunu öğrenmeden \"amcası\" deme). "
+    "\"(gizli: yalnızca X bilir)\": başka hiçbir karakter bunu bilmez ve söyleyemez; X de ancak "
+    "kişiliği ve güveni elverirse açar."
+)
 
 _OZET_SISTEM = (
     "Bir interaktif hikâyenin özetini tutuyorsun. Kısa, olgusal ve Türkçe yaz. "
@@ -183,6 +196,8 @@ def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None =
         bolumler.append(f"[HİKÂYENİN ŞİMDİYE KADARKİ ÖZETİ]\n{baglam.ozet}")
     if baglam.olgular:
         bolumler.append("[BİLİNEN OLGULAR]\n" + "\n".join(f"- {o}" for o in baglam.olgular))
+    if any("oyuncu bilmiyor" in o for o in baglam.olgular + baglam.odak_olgular):
+        bolumler.append(_BILGI_ACIKLAMASI)
     if baglam.karakter_kartlari:
         bolumler.append("[İLGİLİ KARAKTERLER]\n" + "\n\n".join(baglam.karakter_kartlari))
     if eylemler:
@@ -236,7 +251,7 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         + "\nMekânlar:\n"
         + "\n".join(f"- {m.id}: {m.ad} — {m.tanim}" for m in dunya.mekanlar.values())
         + "\nOlgular:\n"
-        + "\n".join(f"- [{o.id}] {o.metin}" for o in dunya.olgular)
+        + "\n".join(f"- [{o.id}] {o.metin}{dunya.bilgi_etiketi(o.id, durum.ogrenilen)}" for o in dunya.olgular)
         + ("\nDünya kuralları (asla çiğnenmez):\n" + "\n".join(f"- [{k.id}] {k.metin}" for k in dunya.kurallar)
            if dunya.kurallar else ""),
         f"[OYUNCUNUN ÜZERİNDEKİLER — bu sahneden önce] {_uzerindekiler(durum.esyalar, durum.akce, dunya.para_birimi)}",
@@ -272,7 +287,9 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     odak = dunya.ilgili_olgular(odak_idleri)
     if odak:
         bolumler.append("[BU SAHNEYLE DOĞRUDAN İLGİLİ KESİN OLGULAR — sahneyi özellikle bunlara karşı denetle]\n"
-                        + "\n".join(f"- [{o.id}] {o.metin}" for o in odak))
+                        + "\n".join(f"- [{o.id}] {o.metin}{dunya.bilgi_etiketi(o.id, durum.ogrenilen)}"
+                                     for o in odak))
+    bolumler.append(_BILGI_ACIKLAMASI)
 
     gorevler = [
         "0. sahne_bilgisi: sahnenin SONUNDA oyuncu hangi mekânda (id), gün ve vakit ne (\"1. gün, gece\" "
@@ -291,7 +308,12 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         "aynı bilgiyi başka sözcüklerle söyleyen varsa biliniyordur.\n"
         '   - "celisiyor": bir olguyla çelişiyor ("olgu": çelişilen id). Karakterlerin SÖZLERİNİ de '
         "kanona karşı denetle (ör. biri kilitli bir odaya \"boş\" diyorsa ya da biri dönmüşken "
-        "\"kimse dönmedi\" diyorsa çelişkidir).\n"
+        "\"kimse dönmedi\" diyorsa çelişkidir). Her çelişkide \"alinti\": sahneden çelişen cümleyi "
+        "AYNEN kopyala (alıntı gösteremiyorsan çelişki yazma). \"kaynak\": anlatimsa \"anlatim\", bir "
+        "karakterin sözüyse \"karakter_sozu\"; karakter sözüyse \"yalan_olabilir\": karakter kartına ve "
+        "durumuna göre bilerek yalan söylüyor ya da saklıyor olabilir mi (true/false).\n"
+        "   Olayların sonucunda DEĞİŞEN durum çelişki değildir: biri yer değiştirdi, bir eşya harcandı ya "
+        "da el değiştirdi, zaman geçti, bir kapı açıldı. Bunları \"yeni\" (tur: olay) yaz.\n"
         '   - "yeni": hiçbir yerde yok ve hikâyede kesinleşti.\n'
         "   Bir karakterin BAŞKA BİRİ hakkındaki sözü (\"Selvi ağzı sıkıdır\") dünya olgusu değil, onun "
         "görüşüdür: yazacaksan \"Nehir Hanım'a göre Selvi ağzı sıkıdır\" biçiminde yaz. Görüş, "
@@ -330,17 +352,21 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         '(ör. ateşli silah) ayrıca iddialarda "celisiyor" olarak ilgili kuralın id\'siyle (k1...) yazılır.',
         "5. karakter_degisimleri: bir karakterin tutumunda, inancında ya da oyuncuyla ilişkisinde "
         "bu sahnede kalıcı bir değişim olduysa. Yoksa boş liste.",
+        "6. ogrenilen: kanonda \"(oyuncu bilmiyor)\" ya da \"(gizli ...)\" etiketli olgulardan oyuncunun BU "
+        "sahnede öğrendikleri: [{\"olgu\": \"o6\", \"kaynak\": \"söyleyen karakterin id'si ya da gozlem\"}]. "
+        "Anlatım bunu oyuncuya kimse söylemeden ve oyuncu görmeden veriyorsa ogrenilen'e değil "
+        "oyuncu_bilgi_sizintisi'na yaz. Yoksa boş liste.",
     ]
     ornek_zanaat = ""
     if zanaat_acik:
         sahne_ilkeleri = [i for i in ilkeler if i["kapsam"] == "sahne"]
         hikaye_ilkeleri = [i for i in ilkeler if i["kapsam"] == "hikaye"]
         gorevler.append(
-            '6. zanaat: her ölçüt için "iyi" ya da "zayif" ver, gerekçeyi bir cümleyle yaz.\n'
+            '7. zanaat: her ölçüt için "iyi" ya da "zayif" ver, gerekçeyi bir cümleyle yaz.\n'
             + "\n".join(f"   - {i['id']}: {i['soru']}" for i in sahne_ilkeleri)
         )
         gorevler.append(
-            "7. yazar_notu: yazara bir sonraki sahne için en fazla iki cümlelik SOMUT öneri: kim ne "
+            "8. yazar_notu: yazara bir sonraki sahne için en fazla iki cümlelik SOMUT öneri: kim ne "
             "söyleyebilir, ne olabilir (ör. \"Nehir Hanım oda fiyatını söyleyip karşılığında oyuncunun "
             "kim olduğunu sorabilir\"). \"Sağla\", \"güçlendir\", \"ima et\" gibi genel ifadeler yazma; "
             "bir karakterin cevap vermemesini ya da susmasını önerme. "
@@ -362,13 +388,16 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         '  "sahne_bilgisi": {"mekan": "mekân id\'si", "zaman": "gün ve vakit", "karakterler": ["id"], '
         '"envanter": {"eklenen": [], "cikan": [], "akce": 0}},\n'
         '  "iddialar": [{"metin": "iddia", "tur": "olay", "durum": "yeni, biliniyor ya da celisiyor", '
-        '"olgu": "ilgili olgu ya da kural id\'si veya null", "ilgili": ["karakter/mekân id\'leri"]}],\n'
+        '"olgu": "ilgili olgu ya da kural id\'si veya null", "ilgili": ["karakter/mekân id\'leri"], '
+        '"alinti": "yalnızca celisiyor ise: sahneden aynen cümle", "kaynak": "anlatim ya da karakter_sozu", '
+        '"yalan_olabilir": false}],\n'
         '  "vaatler": {"acilan": ["yeni soru"], "ilerleyen": [{"id": "v1", "kanit": "..."}], '
         '"cozulen": []},\n'
         '  "karakter_denetimi": [{"karakter": "id", "kisilik": "uygun", "konusma": "uygun", '
         '"bilgi": "uygun", "gerekce": ""}],\n'
         '  "oyuncu_bilgi_sizintisi": "",\n'
-        '  "karakter_degisimleri": [{"karakter": "id", "degisim": "ne değişti"}]'
+        '  "karakter_degisimleri": [{"karakter": "id", "degisim": "ne değişti"}],\n'
+        '  "ogrenilen": [{"olgu": "o6", "kaynak": "karakter id ya da gozlem"}]'
         + ornek_zanaat + "\n}"
     )
     return _EDITOR_SISTEM, "\n\n".join(bolumler)

@@ -8,7 +8,7 @@ from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import DunyaHatasi, dunya_yukle
 from hikaye.editor import Editor, editor_yanit_coz, ilkeleri_yukle
 from hikaye.getirim import BM25, belirtecle, kucult, ortusme
-from hikaye.istem import sistem_istemi
+from hikaye.istem import sahne_istemi, sistem_istemi
 from hikaye.kayit import Kayitci
 from hikaye.llm import LLMYanit, SahteLLM
 from hikaye.motor import Motor, YanitHatasi, tekrar_secenekleri_ayikla, yanit_coz
@@ -404,10 +404,11 @@ class HafifYazarTesti(unittest.TestCase):
     def test_hafif_istem_form_alanlari_istemez(self):
         dunya = dunya_yukle(DUNYA_YOLU)
         hafif, tam = sistem_istemi(dunya, hafif=True), sistem_istemi(dunya, hafif=False)
-        for alan in ('"yeni_olgular"', '"envanter"', '"zaman"', '"tanisilan"'):
+        for alan in ('"yeni_olgular"', '"zaman"', '"tanisilan"'):
             self.assertNotIn(alan, hafif)
             self.assertIn(alan, tam)
         self.assertIn('"secenekler"', hafif)
+        self.assertIn('"envanter"', hafif)          # envanteri yazar bildirir, kod denetler
 
     def test_editorun_sahne_bilgisi_uygulanir(self):
         dunya = dunya_yukle(DUNYA_YOLU)
@@ -523,6 +524,8 @@ class EditorTesti(unittest.TestCase):
         self.motor = Motor(self.dunya, SahteLLM(self.dunya), Bellek("son"))
         self.motor.basla()
         self.durum = self.motor.durum
+        self.durum.sahneler[-1].metin = ("Elinde parlak bir tabanca tutuyorsun.\n"
+                                         'İri yapılı kadın: "Yedi numaralı oda boş, evlat."')
 
     def test_ilke_dosyasi_gecerli(self):
         ilkeler = ilkeleri_yukle()
@@ -583,7 +586,8 @@ class EditorTesti(unittest.TestCase):
         metin = json.dumps({
             "iddialar": [
                 {"metin": "Nehir Hanım sabırsız biridir.", "tur": "kisilik", "durum": "yeni"},
-                {"metin": "Oyuncunun elinde bir tabanca var.", "tur": "sahiplik", "durum": "celisiyor", "olgu": "k1"},
+                {"metin": "Oyuncunun elinde bir tabanca var.", "tur": "sahiplik", "durum": "celisiyor", "olgu": "k1",
+                 "alinti": "Elinde parlak bir tabanca tutuyorsun.", "kaynak": "anlatim"},
             ],
             "vaatler": {"ilerleyen": [{"id": v, "kanit": "x"} for v in ("v1", "v2", "v3")]},
         })
@@ -592,6 +596,47 @@ class EditorTesti(unittest.TestCase):
         self.assertEqual([(i["durum"], i["olgu"]) for i in b["iddialar"]], [("celisiyor", "k1")])
         self.assertEqual([x["id"] for x in b["vaatler"]["ilerleyen"]], ["v1", "v2"])
         self.assertEqual(b["otomatik"]["fazla_ilerleme"], ["v3"])
+
+    def test_celiski_alinti_ister_ve_yalani_ayirir(self):
+        metin = json.dumps({"iddialar": [
+            {"metin": "Tabanca var.", "durum": "celisiyor", "olgu": "k1", "alinti": "elinde PARLAK bir tabanca tutuyorsun"},
+            {"metin": "Uydurma alıntı.", "durum": "celisiyor", "olgu": "o1", "alinti": "Kapı ardına kadar açık duruyor."},
+            {"metin": "Alıntısız.", "durum": "celisiyor", "olgu": "o1"},
+            {"metin": "Oda boş dedi.", "durum": "celisiyor", "olgu": "o1", "alinti": "Yedi numaralı oda boş, evlat.",
+             "kaynak": "karakter_sozu", "yalan_olabilir": True},
+        ]})
+        b = editor_yanit_coz(metin, self.dunya, self.durum)
+        self.assertEqual([(i["olgu"], i["alinti"]) for i in b["iddialar"]],
+                         [("k1", "elinde PARLAK bir tabanca tutuyorsun")])      # büyük/küçük harf önemsiz
+        self.assertEqual(b["otomatik"]["alintisiz_celiski"], ["Uydurma alıntı.", "Alıntısız."])
+        self.assertEqual(b["otomatik"]["yalan_sayilan"], ["Oda boş dedi."])
+
+    def test_ogrenilen_ve_kodla_bilgi_sizintisi(self):
+        self.assertIn("o3", self.durum.ogrenilen)                 # oyuncu kervanı bilerek başlar
+        metin = json.dumps({"ogrenilen": [
+            {"olgu": "o6", "kaynak": "nehir"},      # herkes bilir: sorun yok
+            {"olgu": "o13", "kaynak": "tekin"},     # yalnızca Selvi bilir: Tekin söyleyemez
+            {"olgu": "o3", "kaynak": "nehir"},      # zaten biliniyor: atlanır
+            {"olgu": "o99", "kaynak": "nehir"},     # yok
+        ]})
+        b = editor_yanit_coz(metin, self.dunya, self.durum)
+        self.assertEqual(b["ogrenilen"], [{"olgu": "o6", "kaynak": "nehir"}, {"olgu": "o13", "kaynak": "tekin"}])
+        self.assertEqual(b["otomatik"]["kod_sizinti"], ["tekin:o13"])
+        self.assertEqual([(d["karakter"], d["bilgi"]) for d in b["karakter_denetimi"]], [("tekin", "sizinti")])
+        Editor("denetim")._uygula(b, self.durum, 1)
+        self.assertIn("o6", self.durum.ogrenilen)
+
+    def test_bilgi_etiketleri(self):
+        d = self.dunya
+        self.assertEqual(d.bilgi_etiketi("o3", []), "")                         # oyuncu biliyor
+        self.assertEqual(d.bilgi_etiketi("o6", []), " (oyuncu bilmiyor)")
+        self.assertIn("yalnızca Kâtip Selvi bilir", d.bilgi_etiketi("o13", []))
+        self.assertEqual(d.bilgi_etiketi("o6", ["o6"]), "")                     # öğrendi
+        self.assertEqual(d.bilgi_etiketi("y1", []), "")                         # oyun olgusu
+        baglam = Bellek("tam").baglam(d, self.durum, "Demirhaneye git")
+        self.assertTrue(any(o.startswith("[o6]") and o.endswith("(oyuncu bilmiyor)") for o in baglam.odak_olgular))
+        istem_metni = sahne_istemi(d, baglam, "Demirhaneye git")
+        self.assertIn("[OLGULARDAKİ BİLGİ ETİKETLERİ]", istem_metni)
 
     def test_yazara_yasananlar_ve_tekrarlar_gider(self):
         from hikaye.durum import KarakterDegisimi
