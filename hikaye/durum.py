@@ -160,15 +160,57 @@ def _en_benzeyen(esyalar: list[str], aranan: str) -> str | None:
     return max(puanli)[2] if puanli else None
 
 
+def _esya_adi(x) -> str:
+    """Öğe düz ad ("pusula") ya da {"esya": "pusula", "kime"/"kimden": id} olabilir."""
+    return str(x.get("esya") or "").strip() if isinstance(x, dict) else str(x).strip()
+
+
 def envanter_oku(ham) -> dict:
     """Model çıktısındaki {"eklenen", "cikan", "akce"} alanını güvenli biçimde okur."""
     ham = ham if isinstance(ham, dict) else {}
-    liste = lambda anahtar: [str(x).strip() for x in ham.get(anahtar) or [] if str(x).strip()]  # noqa: E731
+    liste = lambda anahtar: [_esya_adi(x) for x in ham.get(anahtar) or [] if _esya_adi(x)]  # noqa: E731
     try:
         akce = int(ham.get("akce") or 0)
     except (TypeError, ValueError):
         akce = 0
     return {"eklenen": liste("eklenen"), "cikan": liste("cikan"), "akce": akce}
+
+
+def envanter_devirleri(ham, karakterler) -> list[dict]:
+    """Oyuncunun envanterindeki el değiştirmeler: [{"esya", "kime"}] (oyuncu verdi) ve
+    [{"esya", "kimden"}] (oyuncu aldı). Bilinmeyen karakter atılır."""
+    ham = ham if isinstance(ham, dict) else {}
+    devirler = []
+    for anahtar, yon in (("cikan", "kime"), ("eklenen", "kimden")):
+        for x in ham.get(anahtar) or []:
+            if isinstance(x, dict) and _esya_adi(x) and x.get(yon) in karakterler:
+                devirler.append({"esya": _esya_adi(x), yon: x[yon]})
+    return devirler
+
+
+def devir_uygula(durum: Durum, devirler: list[dict], oyuncunun_onceki: list[str]) -> list[str]:
+    """Oyuncunun verdiği eşya ancak gerçekten oyuncudan çıktıysa karaktere geçer; oyuncunun
+    aldığı eşya karakterdeyse ondan düşer. Reddedilen uyarı olarak döner."""
+    uyarilar = []
+    cikanlar = list(oyuncunun_onceki)
+    for x in durum.esyalar:                  # sahneden sonra hâlâ oyuncuda olanlar çıkmamıştır
+        eslesen = _en_benzeyen(cikanlar, x)
+        if eslesen and kucult(eslesen) == kucult(x):
+            cikanlar.remove(eslesen)
+    for d in devirler:
+        kd = durum.karakter_durumlari.get(d.get("kime") or d.get("kimden"))
+        if kd is None:
+            continue
+        if "kime" in d:
+            if _en_benzeyen(cikanlar, d["esya"]) is None:
+                uyarilar.append(f"karakter durumu reddedildi: {d['kime']} {d['esya']!r} aldı, ama oyuncudan çıkmadı")
+            elif not any(_ayni_esya(e, d["esya"]) for e in kd.esyalar):
+                kd.esyalar.append(_en_benzeyen(cikanlar, d["esya"]))
+        else:
+            eslesen = _en_benzeyen(kd.esyalar, d["esya"])
+            if eslesen:
+                kd.esyalar.remove(eslesen)
+    return uyarilar
 
 
 def karakter_degisimi_uygula(durum: Durum, degisenler: list[dict], sahne_no: int) -> list[str]:

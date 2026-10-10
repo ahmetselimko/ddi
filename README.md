@@ -256,8 +256,16 @@ bırakılabilir.
 - Editör panelindeki **Karakterler** sekmesi, görülen karakterlerin bu durumunu gösterir. Sırlar
   ve başlangıç eşyaları gösterilmez.
 
-İlk 5 turluk denemede yer takibi doğruydu, ama editör karakterlerin eşya değişimini hiç
-bildirmedi: oyuncunun verdiği pusula oyuncudan düştü, kadına geçmedi. Eşya devri henüz güvenilir değil.
+- **Oyuncu ile karakter arasında el değiştirme:** editör oyuncunun envanterini bildirirken eşyanın
+  kime verildiğini ya da kimden alındığını da yazar ({"esya": "pusula", "kime": "nehir"}). Kod,
+  eşya gerçekten oyuncudan çıktıysa karaktere geçirir. Karşı taraf almayı reddettiyse eşya oyuncuda kalır.
+
+Gerçek denemelerde (toplam 14 tur):
+- Yer takibi her seferinde doğruydu.
+- Çocuğa verilen harita defteri ona geçti ve sonraki sahnede de ondaydı.
+- Kadının almayı reddettiği pusula oyuncuda kaldı. Bu kural eklenmeden önceki denemede pusula ortadan
+  kaybolmuştu.
+- Örneklem çok küçük; eşya devrinin her durumda doğru işlediği kanıtlanmış değil.
 
 Başka bir dünya için aynı biçimde yeni bir YAML yazıp `--dunya` ile verin. Karakterlerde
 `adlar` alanına **yalnızca özel adlar** yazın: "yabancı", "çocuk" gibi sıradan kelimeler her

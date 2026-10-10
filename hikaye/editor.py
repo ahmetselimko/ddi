@@ -22,7 +22,7 @@ import yaml
 
 from . import istem
 from .dunya import Dunya
-from .durum import Celiski, Durum, KarakterDegisimi, KarakterSapmasi, envanter_oku
+from .durum import Celiski, Durum, KarakterDegisimi, KarakterSapmasi, envanter_devirleri, envanter_oku
 from .getirim import BM25, belirtecle, kucult, ortusme, tekrarlanan_sozcukler
 from .llm import json_coz
 
@@ -170,6 +170,7 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         "zaman": str(sb.get("zaman") or "").strip(),
         "karakterler": [k for k in sb.get("karakterler") or [] if k in dunya.karakterler],
         "envanter": envanter_oku(sb.get("envanter")),
+        "devirler": envanter_devirleri(sb.get("envanter"), dunya.karakterler),
         "karakterler_degisen": _karakter_degisenleri(sb.get("karakterler_degisen"), dunya),
     }
 

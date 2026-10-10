@@ -97,6 +97,35 @@ class DegisenDurumTesti(unittest.TestCase):
         karakter_degisimi_uygula(d, [{"karakter": "oruc", "eklenen": [], "cikan": [], "beden": "iyi"}], 5)
         self.assertEqual(kd.beden, "")
 
+    def test_oyuncu_ile_karakter_arasinda_devir(self):
+        from hikaye.durum import devir_uygula, envanter_devirleri, envanter_oku, envanter_uygula
+        motor = Motor(TUZHAN, SahteLLM(TUZHAN), Bellek("son"))
+        d = motor.durum
+        ham = {"cikan": [{"esya": "pusula", "kime": "nehir"}, {"esya": "kılıç", "kime": "nehir"}],
+               "eklenen": [{"esya": "tuz taşı", "kimden": "tekin"}, {"esya": "x", "kimden": "hayalet"}]}
+        self.assertEqual(envanter_oku(ham), {"eklenen": ["tuz taşı", "x"], "cikan": ["pusula", "kılıç"], "akce": 0})
+        devirler = envanter_devirleri(ham, TUZHAN.karakterler)
+        self.assertEqual(len(devirler), 3)                          # bilinmeyen karakter atıldı
+        onceki = list(d.esyalar)
+        envanter_uygula(d, envanter_oku(ham))                        # kılıç oyuncuda yok: çıkmaz
+        uyarilar = devir_uygula(d, devirler, onceki)
+        self.assertIn("pusula", d.karakter_durumlari["nehir"].esyalar)
+        self.assertNotIn("kılıç", d.karakter_durumlari["nehir"].esyalar)
+        self.assertEqual(len(uyarilar), 1)                           # oyuncudan çıkmayan kılıç reddedildi
+        self.assertEqual(d.karakter_durumlari["tekin"].esyalar, [])  # tuz taşı oyuncuya geçti
+        self.assertIn("tuz taşı", d.esyalar)
+
+    def test_reddedilen_hediye_oyuncuda_kalir(self):
+        from hikaye.durum import devir_uygula, envanter_devirleri
+        motor = Motor(TUZHAN, SahteLLM(TUZHAN), Bellek("son"))
+        d = motor.durum
+        # editör yalnızca devri yazdı ama envanterden çıkarmadı (ör. kadın almayı reddetti)
+        uyarilar = devir_uygula(d, envanter_devirleri({"cikan": [{"esya": "pusula", "kime": "nehir"}]},
+                                                      TUZHAN.karakterler), list(d.esyalar))
+        self.assertIn("pusula", d.esyalar)
+        self.assertNotIn("pusula", d.karakter_durumlari["nehir"].esyalar)
+        self.assertTrue(uyarilar)
+
     def test_editor_bildirimi_ayristirilir(self):
         motor = Motor(TUZHAN, SahteLLM(TUZHAN), Bellek("son"))
         motor.basla()

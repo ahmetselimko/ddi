@@ -302,6 +302,10 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         "0. sahne_bilgisi: sahnenin SONUNDA oyuncu hangi mekânda (id), gün ve vakit ne (\"1. gün, gece\" "
         "gibi; zaman değişmediyse öncekini yaz), sahnede hangi karakterler bulunuyor (id'ler), oyuncunun "
         "üzerindekilerde ne değişti (eline geçen, elinden çıkan eşyalar; para değişimi: ödediyse eksi). "
+        "Yalnızca gerçekten el değiştirdiyse yaz: karşı taraf almayı reddettiyse eşya oyuncuda kalır. "
+        "Eşyayı oyuncu bir karaktere VERDİYSE cikan öğesini {\"esya\": \"pusula\", \"kime\": \"karakter id\"}, "
+        "bir karakterden ALDIYSA eklenen öğesini {\"esya\": \"anahtar\", \"kimden\": \"karakter id\"} "
+        "biçiminde yaz; yere düştüyse ya da kaybolduysa düz ad yeter. "
         "karakterler_degisen: bir KARAKTERİN üzerindekilerde (eline geçen, elinden çıkan eşya; oyuncuya "
         "verdiği ya da oyuncudan aldığı dahil) ya da bedeninde (yaralandı, hastalandı; iyileştiyse \"iyi\") "
         "bu sahnede kalıcı bir değişim olduysa; yoksa boş liste.",
@@ -388,7 +392,8 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     bolumler.append(
         "JSON BİÇİMİ:\n{\n"
         '  "sahne_bilgisi": {"mekan": "mekân id\'si", "zaman": "gün ve vakit", "karakterler": ["id"], '
-        '"envanter": {"eklenen": [], "cikan": [], "akce": 0}, '
+        '"envanter": {"eklenen": ["eşya" ya da {"esya": "...", "kimden": "id"}], '
+        '"cikan": ["eşya" ya da {"esya": "...", "kime": "id"}], "akce": 0}, '
         '"karakterler_degisen": [{"karakter": "id", "eklenen": [], "cikan": [], "beden": ""}]},\n'
         '  "iddialar": [{"metin": "iddia", "tur": "olay", "durum": "yeni, biliniyor ya da celisiyor", '
         '"olgu": "ilgili olgu ya da kural id\'si veya null", "ilgili": ["karakter/mekân id\'leri"]}],\n'

@@ -12,8 +12,8 @@ from dataclasses import asdict
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
-from .durum import (Durum, KarakterDurumu, Replik, Sahne, durum_yukle, envanter_oku, envanter_uygula,
-                    karakter_degisimi_uygula)
+from .durum import (Durum, KarakterDurumu, Replik, Sahne, devir_uygula, durum_yukle, envanter_oku,
+                    envanter_uygula, karakter_degisimi_uygula)
 from .editor import Editor
 from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
@@ -502,6 +502,7 @@ class Motor:
             uyarilar.append(zaman_uyarisi)
         uyarilar.extend(f"eylem denetimi: {n}" for n in eylem_notlari)
         self.durum.mekan, self.durum.zaman = sahne.mekan, sahne.zaman
+        oyuncunun_onceki = list(self.durum.esyalar)
         uyarilar.extend(envanter_uygula(self.durum, envanter))
         # Karakterlerin yeri: kod (sahnede görülenler sahnenin mekânında). Eşya ve beden: editör
         # bildirir, kod doğrular.
@@ -510,6 +511,8 @@ class Motor:
             if kd is not None:
                 kd.konum, kd.goruldugu_sahne = sahne.mekan, no
         if self.son_bulgular is not None:
+            uyarilar.extend(devir_uygula(self.durum, self.son_bulgular["sahne_bilgisi"].get("devirler", []),
+                                         oyuncunun_onceki))
             uyarilar.extend(karakter_degisimi_uygula(
                 self.durum, self.son_bulgular["sahne_bilgisi"].get("karakterler_degisen", []), no))
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
