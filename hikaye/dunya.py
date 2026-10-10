@@ -26,6 +26,9 @@ class Karakter:
     gorunen_ad: str = ""   # oyuncu tanışmadan önce konuşma etiketi ("İri yapılı kadın")
     yer: str = ""          # genelde bulunduğu mekânın id'si; oraya gidilince kartı yazara gider
     imza: list[str] = field(default_factory=list)   # yalnızca bu karaktere ait sözler ("evlat")
+    # Manga için görünüş: sac, yuz, kiyafet, ayirt_edici (Türkçe, okumak için) ve prompt_en
+    # (görsel modelin kullandığı İngilizce etiketler). İsteğe bağlı; yoksa manga.py üretir.
+    gorunum: dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.gorunen_ad = self.gorunen_ad or self.ad
@@ -60,6 +63,7 @@ class Mekan:
     # Metinde anılma biçimleri: "kule*" önekle eşleşir (kuleye, kulenin); yıldızsız
     # olanlar kelimenin tam kendisiyle ("han" → "han", "Han'a"; ama "hanım" değil)
     adlar: list[str] = field(default_factory=list)
+    prompt_en: str = ""    # manga: mekânın İngilizce görsel etiketleri (isteğe bağlı)
 
 
 @dataclass
@@ -87,6 +91,7 @@ class Dunya:
     oyuncu_akce: int = 0                  # alan adı tarihsel; birimi para_birimi söyler
     para_birimi: str = "akçe"
     vaatler: list[str] = field(default_factory=list)   # oyun başında açık olan büyük sorular
+    gorsel_en: str = ""    # manga: dünyanın dönemi/ortamı, her panele eklenen İngilizce etiketler
 
     @property
     def acilis(self) -> Olgu:
@@ -161,6 +166,7 @@ def dunya_yukle(yol: str | Path) -> Dunya:
         oyuncu_akce=int(ham.get("oyuncu_akce") or 0),
         para_birimi=str(ham.get("para_birimi") or "akçe"),
         vaatler=[str(v) for v in ham.get("vaatler") or []],
+        gorsel_en=str(ham.get("gorsel_en") or ""),
     )
     _dogrula(dunya)
     return dunya
@@ -176,6 +182,8 @@ def _dogrula(dunya: Dunya) -> None:
     for k in dunya.karakterler.values():
         if k.yer and k.yer not in dunya.mekanlar:
             raise DunyaHatasi(f"{k.id} karakterinin yeri tanımlı bir mekân değil: {k.yer}")
+        if not isinstance(k.gorunum, dict) or not all(isinstance(v, str) for v in k.gorunum.values()):
+            raise DunyaHatasi(f"{k.id} karakterinin gorunum alanı ad: metin çiftlerinden oluşmalı")
 
     bilinen = set(dunya.karakterler) | set(dunya.mekanlar)
     gorulen: set[str] = set()

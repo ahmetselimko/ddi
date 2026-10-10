@@ -179,6 +179,13 @@
   .kayitli-oge { display: flex; align-items: center; gap: 8px; background: var(--zemin); border-radius: 8px; padding: 7px 10px; }
   .kayitli-oge .bilgi { flex: 1; min-width: 0; font-size: 13.5px; }
   .kayitli-oge .bilgi small { display: block; color: var(--soluk); font-size: 12px; }
+  .manga-serit { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .manga-serit:empty { display: none; }
+  .manga-serit img { height: 150px; border: 1px solid var(--cizgi); border-radius: 4px; background: var(--zemin); }
+  .manga-serit small { color: var(--soluk); font-size: 12px; }
+  .manga-serit small.hata { color: var(--kirmizi); }
+  .alan .yan-yana { display: flex; gap: 8px; }
+  .alan .yan-yana select { flex: 1; min-width: 0; }
   .baglanti { border: 0; background: none; color: var(--vurgu); padding: 0; font-size: 12.5px; text-decoration: underline; }
 
   /* Telefon */
@@ -195,6 +202,7 @@
   <div class="logo" id="baslik">Tuzhan</div>
   <div class="konum" id="konum"></div>
   <button class="ikon-dugme" id="panel-dugme" aria-pressed="false" title="Editörün bulgularını göster">Editör</button>
+  <button class="ikon-dugme" id="manga-dugme" title="Bu oyunun manga sayfaları" hidden>Manga</button>
   <button class="ikon-dugme" id="kur-dugme" title="Kendi dünyanı kur">Dünya kur</button>
   <button class="ikon-dugme" id="yeni-dugme" title="Kayıtlı oyunlar ve yeni oyun">Oyunlar</button>
   <button class="ikon-dugme" id="tema-dugme" title="Tema">◐</button>
@@ -259,6 +267,18 @@
       <select id="yazar-sec"></select>
       <small id="yazar-aciklama"></small>
     </div>
+    <div class="alan">
+      <label for="manga-sec">Manga</label>
+      <div class="yan-yana">
+        <select id="manga-sec">
+          <option value="">Kapalı</option>
+          <option value="siyahbeyaz">Siyah-beyaz</option>
+          <option value="renkli">Renkli</option>
+        </select>
+        <select id="manga-kaynak" title="Görsel kaynağı"></select>
+      </div>
+      <small id="manga-aciklama"></small>
+    </div>
     <div class="dugmeler">
       <button type="button" class="ikon-dugme" id="vazgec">Vazgeç</button>
       <button type="submit" class="ana-dugme">Başla</button>
@@ -304,7 +324,7 @@ const ACIKLAMA = {
 };
 
 const $ = (s) => document.querySelector(s);
-const durum = { mesgul: false, sekme: "editor", son: null, secenekler: [] };
+const durum = { mesgul: false, sekme: "editor", son: null, secenekler: [], mangaKaynaklari: {}, mangaZamanlayici: null };
 
 function el(etiket, sinif, metin) {
   const e = document.createElement(etiket);
@@ -357,7 +377,125 @@ function sahneCiz(s) {
       kutu.append(el("p", "anlatim", p.metin));
     }
   }
+  const serit = el("div", "manga-serit");
+  serit.dataset.no = s.no;
+  kutu.append(serit);
   $("#sahneler").append(kutu);
+}
+
+/* ── Manga ────────────────────────────────────────────────── */
+const MANGA_DURUM = { bekliyor: "Manga sırada…", ciziliyor: "Manga çiziliyor…" };
+
+function mangaAyari() {
+  const stil = $("#manga-sec").value;
+  return { acik: Boolean(stil), stil: stil || "siyahbeyaz", kaynak: $("#manga-kaynak").value };
+}
+
+function mangaAciklamasi() {
+  const k = $("#manga-kaynak");
+  const hazir = durum.mangaKaynaklari[k.value];
+  k.hidden = !$("#manga-sec").value;
+  $("#manga-aciklama").textContent = !$("#manga-sec").value
+    ? "Her sahneden 2-4 panel çizilir. Görsel üretimi ek maliyet demek; kapalıyken hiçbir şey çizilmez."
+    : hazir ? "Paneller arka planda çizilir, oyun beklemez."
+            : `Bu kaynağın adresi yok: .env içine MANGA_${k.value.toUpperCase()}_ADRES yaz.`;
+}
+
+function mangaCiz(m) {
+  for (const [no, d] of Object.entries(m.sahneler || {})) {
+    const serit = document.querySelector(`.manga-serit[data-no="${no}"]`);
+    if (!serit) continue;
+    if (d.durum === "hazir") {
+      serit.replaceChildren(...d.paneller.map((url) => {
+        const a = el("a");
+        a.href = url;
+        a.target = "_blank";
+        const img = el("img");
+        img.src = url;
+        img.alt = `Sahne ${no} paneli`;
+        img.loading = "lazy";
+        a.append(img);
+        return a;
+      }));
+    } else if (d.durum === "hata") {
+      serit.replaceChildren(el("small", "hata", `Manga çizilemedi: ${d.hata}`));
+    } else {
+      serit.replaceChildren(el("small", "", MANGA_DURUM[d.durum] || ""));
+    }
+  }
+}
+
+function mangaSuruyor(m) {
+  return Object.values(m.sahneler || {}).some((d) => d.durum === "bekliyor" || d.durum === "ciziliyor")
+    || (m.is && m.is.durum === "calisiyor");
+}
+
+/* Oynanan oyunun panellerini sorar; çizilen varsa birkaç saniyede bir yeniden. */
+async function mangaYokla() {
+  clearTimeout(durum.mangaZamanlayici);
+  const kimlik = durum.son && durum.son.kimlik;
+  $("#manga-dugme").hidden = !kimlik;
+  if (!kimlik) return;
+  try {
+    const m = await api(`/api/manga?kimlik=${encodeURIComponent(kimlik)}`);
+    if (!durum.son || durum.son.kimlik !== kimlik) return;
+    mangaCiz(m);
+    if (mangaSuruyor(m)) durum.mangaZamanlayici = setTimeout(mangaYokla, 3000);
+  } catch { /* manga oyunu durdurmasın */ }
+}
+
+async function mangaSayfalariAc(kimlik) {
+  const pencere = window.open("about:blank", "_blank");     // açılır pencere engeline takılmasın
+  try {
+    await api("/api/manga/sayfalar", { kimlik });
+    if (pencere) pencere.location = `/manga/${encodeURIComponent(kimlik)}/`;
+  } catch (e) {
+    if (pencere) pencere.close();
+    bildir(e.message);
+  }
+}
+
+async function mangaDugmesi() {
+  const v = durum.son;
+  if (!v || !v.kimlik) return;
+  if (v.manga && v.manga.acik) return mangaSayfalariAc(v.kimlik);
+  if (!confirm("Bu oyunda manga kapalı. Açılsın mı? Bundan sonraki sahneler (ve son sahne) çizilir; görsel üretimi ek maliyet demek.\n\nStil ve kaynak, Oyunlar penceresindeki Manga seçiminden alınır.")) {
+    return mangaSayfalariAc(v.kimlik);
+  }
+  try {
+    const ayar = { ...mangaAyari(), acik: true };
+    const m = await api("/api/manga/ayar", ayar);
+    durum.son.manga = m.manga;
+    bildir("Manga açıldı; paneller arka planda çiziliyor.", true, 4000);
+    mangaYokla();
+  } catch (e) {
+    bildir(e.message);
+  }
+}
+
+/* Kayıtlı bir oyunun tamamından manga (arka planda); ilerleme satırda görünür. */
+async function kayittanManga(kimlik, durumYazisi) {
+  const ayar = { ...mangaAyari(), acik: true };
+  try {
+    let m = await api("/api/manga/kayit", { kimlik, ...ayar });
+    while (mangaSuruyor(m)) {
+      const is_ = m.is || { biten: 0, toplam: 0 };
+      durumYazisi.textContent = `Manga: ${is_.biten}/${is_.toplam} sahne çizildi…`;
+      await new Promise((t) => setTimeout(t, 3000));
+      m = await api(`/api/manga?kimlik=${encodeURIComponent(kimlik)}`);
+    }
+    const hata = m.is && m.is.hata;
+    durumYazisi.textContent = hata ? `Manga: bazı sahneler çizilemedi (${hata})` : `Manga hazır: ${m.sayfalar.length} sayfa`;
+    if (m.sayfalar.length) {
+      const a = el("a", "baglanti", " Sayfaları aç");
+      a.href = `/manga/${encodeURIComponent(kimlik)}/`;
+      a.target = "_blank";
+      durumYazisi.append(a);
+    }
+  } catch (e) {
+    durumYazisi.textContent = "";
+    bildir(e.message);
+  }
 }
 
 function secenekleriCiz(secenekler) {
@@ -451,6 +589,7 @@ function yanitiIsle(v) {
   ustBilgi(v);
   paneliCiz();
   asagiKaydir();
+  mangaYokla();
 }
 
 async function oyna(eylem) {
@@ -509,6 +648,7 @@ function oyunuCiz(d) {
   ustBilgi(d);
   paneliCiz();
   asagiKaydir();
+  mangaYokla();
   return true;
 }
 
@@ -548,6 +688,18 @@ async function basla() {
     secenekDoldur($("#editor-sec"), a.editorler, a.varsayilan.editor, ACIKLAMA.editor, $("#editor-aciklama"));
     ACIKLAMA.yazar = a.yazarlar || {};
     secenekDoldur($("#yazar-sec"), Object.keys(ACIKLAMA.yazar), a.varsayilan.yazar, ACIKLAMA.yazar, $("#yazar-aciklama"));
+    durum.mangaKaynaklari = a.manga.kaynaklar;
+    const kaynaklar = Object.keys(a.manga.kaynaklar);
+    $("#manga-kaynak").replaceChildren(...kaynaklar.map((k) => {
+      const o = el("option", "", a.manga.kaynaklar[k] ? k : `${k} (adres yok)`);
+      o.value = k;
+      return o;
+    }));
+    $("#manga-kaynak").value = kaynaklar.find((k) => a.manga.kaynaklar[k]) || kaynaklar[0];
+    $("#manga-sec").value = localStorageOku("manga") || "";
+    $("#manga-sec").onchange = () => { localStorageYaz("manga", $("#manga-sec").value); mangaAciklamasi(); };
+    $("#manga-kaynak").onchange = mangaAciklamasi;
+    mangaAciklamasi();
     if (!(a.oyun_var && await durumuYukle())) baslangicAc();
   } catch (e) {
     bildir(`Sunucuya bağlanılamadı: ${e.message}`);
@@ -571,9 +723,10 @@ function panelAc(acik) {
 $("#baslangic-form").addEventListener("submit", (e) => {
   e.preventDefault();
   yeniOyun({ dunya: $("#dunya-sec").value, bellek: $("#bellek-sec").value,
-             editor: $("#editor-sec").value, yazar: $("#yazar-sec").value });
+             editor: $("#editor-sec").value, yazar: $("#yazar-sec").value, manga: mangaAyari() });
 });
 $("#yeniden-dugme").addEventListener("click", yenidenYaz);
+$("#manga-dugme").addEventListener("click", mangaDugmesi);
 $("#vazgec").addEventListener("click", () => ($("#baslangic").hidden = true));
 $("#yeni-dugme").addEventListener("click", () => { if (!durum.mesgul) baslangicAc(); });
 
@@ -604,10 +757,16 @@ function kayitlariCiz(v) {
     const bilgi = el("div", "bilgi", `${k.dunya_ad} · ${k.sahne} sahne`);
     const oynanan = k.kimlik === v.oynanan;
     bilgi.append(el("small", "", [oynanan ? "şu an oynanan" : "", k.oyun_zamani, tarihYaz(k.zaman)].filter(Boolean).join(" · ")));
+    const mangaYazisi = el("small", "");
+    bilgi.append(mangaYazisi);
     const devam = el("button", "ana-dugme", oynanan ? "Dön" : "Devam et");
     devam.type = "button";
     devam.onclick = () => (oynanan ? ($("#baslangic").hidden = true) : devamEt(k.kimlik));
-    oge.append(bilgi, devam);
+    const manga = el("button", "ikon-dugme", "Manga");
+    manga.type = "button";
+    manga.title = "Bu oyunun tamamından manga oluştur (seçili stil ve kaynakla)";
+    manga.onclick = () => kayittanManga(k.kimlik, mangaYazisi);
+    oge.append(bilgi, devam, manga);
     if (!oynanan) {
       const sil = el("button", "ikon-dugme", "Sil");
       sil.type = "button";

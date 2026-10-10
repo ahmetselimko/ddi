@@ -13,27 +13,36 @@ Ek paket gerekmez: Python'un kendi http.server'ı kullanılır. Tek oyuncu için
 aynı anda tek oyun yürür.
 """
 import argparse
+import copy
 import json
 import os
+import queue
+import re
 import threading
 import urllib.request
 import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from hikaye.bellek import STRATEJILER, Bellek
 from hikaye.dunya import dunya_yukle
+from hikaye.durum import durum_yukle
 from hikaye.dunya_kurucu import KurucuHatasi, cevaplardan_dunya, dunya_kaydet, ipuclari, taslak_uret
 from hikaye.editor import MODLAR, Editor
-from hikaye.kayit import Kayitci, oyun_kaydet, oyun_oku, oyun_sil, oyunlari_listele
+from hikaye.kayit import KAYIT_KIMLIGI, Kayitci, oyun_kaydet, oyun_oku, oyun_sil, oyunlari_listele
 from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
+from hikaye.manga import STILLER as MANGA_STILLERI
+from hikaye.manga import MangaUretici, hazir_kaynaklar, servis_olustur
 from hikaye.motor import ETIKETLI_SATIR, Motor, YanitHatasi
 
 KOK = Path(__file__).parent
 WEB_KLASORU = KOK / "web"
 DUNYA_KLASORU = KOK / "dunyalar"
 EN_UZUN_EYLEM = 300
+MANGA_DOSYASI = re.compile(r"^[\w-]{1,40}\.png$")
+MANGA_KAPALI = {"acik": False, "kaynak": "yerel", "stil": "siyahbeyaz"}
 
 # Ücretli katman, metin, 1M token başına dolar (girdi, çıktı). Kaynak: ai.google.dev/gemini-api/docs/pricing
 FIYATLAR = {
@@ -63,11 +72,131 @@ def _model_adi(llm) -> str:
     return llm.ad.split(":", 1)[-1]
 
 
+class MangaIsci:
+    """Manga panellerini arka planda, sırayla çizer (görsel servisi tek GPU). Oyun beklemez:
+    sahne kuyruğa girer, arayüz durumu /api/manga ile sorar."""
+
+    def __init__(self, klasor: Path, llm_turu: str):
+        self.klasor = klasor
+        self.llm_turu = llm_turu
+        self.kuyruk: queue.Queue = queue.Queue()
+        self.kilit = threading.Lock()
+        self.durumlar: dict = {}          # kimlik → {"sahneler": {no: {...}}, "is": {...}|None, "harcama": {...}}
+        self._ureticiler: dict = {}       # (kimlik, kaynak, stil) → MangaUretici
+        threading.Thread(target=self._calis, daemon=True, name="manga").start()
+
+    def _kayit(self, kimlik: str) -> dict:
+        return self.durumlar.setdefault(kimlik, {"sahneler": {}, "is": None,
+                                                 "harcama": {"girdi": 0, "cikti": 0, "gorsel": 0, "dolar": 0.0}})
+
+    def sahne_ekle(self, kimlik, dunya_kimligi, dunya, sahne, kaynak, stil, toplu=False) -> None:
+        with self.kilit:
+            self._kayit(kimlik)["sahneler"][sahne.no] = {"durum": "bekliyor", "hata": ""}
+        self.kuyruk.put(("sahne", kimlik, dunya_kimligi, dunya, copy.deepcopy(sahne), kaynak, stil, toplu))
+
+    def kayit_ekle(self, kimlik, dunya_kimligi, dunya, sahneler, kaynak, stil) -> int:
+        """Kayıtlı bir oyunun henüz çizilmemiş sahneleri, sonra sayfalar. Kuyruğa giren sahne sayısı."""
+        cizilmis = {p["sahne_no"] for p in self.paneller(kimlik)}
+        eksik = [s for s in sahneler if s.no not in cizilmis]
+        with self.kilit:
+            self._kayit(kimlik)["is"] = {"durum": "calisiyor", "toplam": len(eksik), "biten": 0, "hata": ""}
+        for s in eksik:
+            self.sahne_ekle(kimlik, dunya_kimligi, dunya, s, kaynak, stil, toplu=True)
+        self.kuyruk.put(("sayfa", kimlik, dunya_kimligi, dunya, None, kaynak, stil, True))
+        return len(eksik)
+
+    def bekle(self) -> None:
+        """Kuyruktaki her iş bitene kadar bekler (testler için)."""
+        self.kuyruk.join()
+
+    def _uretici(self, kimlik, dunya_kimligi, dunya, kaynak, stil) -> MangaUretici:
+        anahtar = (kimlik, kaynak, stil)
+        if anahtar not in self._ureticiler:
+            self._ureticiler[anahtar] = MangaUretici(
+                dunya, servis_olustur(kaynak, stil), self.klasor / kimlik,
+                llm=llm_olustur(self.llm_turu, dunya=dunya, yazar="hizli"),
+                gorunum_onbellegi=self.klasor / "_gorunum" / f"{dunya_kimligi}.json")
+        return self._ureticiler[anahtar]
+
+    def _calis(self) -> None:
+        while True:
+            is_ = self.kuyruk.get()
+            try:
+                self._is(*is_)
+            except Exception as e:                 # işçi asla durmasın
+                print(f"Manga işçisi: {type(e).__name__}: {e}")
+            finally:
+                self.kuyruk.task_done()
+
+    def _is(self, tur, kimlik, dunya_kimligi, dunya, sahne, kaynak, stil, toplu) -> None:
+        kayit = self._kayit(kimlik)
+        if tur == "sayfa":
+            try:
+                self.sayfalari_kur(kimlik, dunya)
+                durum, hata = "bitti", ""
+            except Exception as e:
+                durum, hata = "hata", f"{type(e).__name__}: {e}"
+            with self.kilit:
+                if kayit["is"]:
+                    kayit["is"].update(durum=durum, hata=hata or kayit["is"]["hata"])
+            return
+        with self.kilit:
+            kayit["sahneler"][sahne.no] = {"durum": "ciziliyor", "hata": ""}
+        try:
+            uretici = self._uretici(kimlik, dunya_kimligi, dunya, kaynak, stil)
+            once = (uretici.kullanim.girdi, uretici.kullanim.cikti, uretici.kullanim.gorsel)
+            uretici.sahne_ciz(sahne)
+            sonuc = {"durum": "hazir", "hata": ""}
+            girdi = uretici.kullanim.girdi - once[0]
+            cikti = uretici.kullanim.cikti - once[1]
+            fiyat = FIYATLAR.get(_model_adi(uretici.llm)) if uretici.llm else None
+            with self.kilit:
+                h = kayit["harcama"]
+                h["girdi"] += girdi
+                h["cikti"] += cikti
+                h["gorsel"] += uretici.kullanim.gorsel - once[2]
+                if fiyat:
+                    h["dolar"] += girdi * fiyat[0] / 1e6 + cikti * fiyat[1] / 1e6
+        except Exception as e:                     # servis kapalı, ağ, bozuk yanıt
+            sonuc = {"durum": "hata", "hata": f"{type(e).__name__}: {e}"}
+        with self.kilit:
+            kayit["sahneler"][sahne.no] = sonuc
+            if toplu and kayit["is"]:
+                kayit["is"]["biten"] += 1
+                if sonuc["hata"]:
+                    kayit["is"]["hata"] = sonuc["hata"]
+
+    def paneller(self, kimlik: str) -> list[dict]:
+        try:
+            return json.loads((self.klasor / kimlik / "paneller.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+
+    def durum(self, kimlik: str) -> dict:
+        paneller: dict = {}
+        for p in self.paneller(kimlik):
+            paneller.setdefault(p["sahne_no"], []).append(f"/manga/{kimlik}/{p['dosya']}?s={p.get('seed') or 0}")
+        with self.kilit:
+            kayit = copy.deepcopy(self._kayit(kimlik))
+        sahneler = {no: {"durum": "hazir", "hata": "", "paneller": liste} for no, liste in paneller.items()}
+        for no, d in kayit["sahneler"].items():
+            sahneler[no] = {**d, "paneller": paneller.get(no, []) if d["durum"] == "hazir" else []}
+        kayit["harcama"]["dolar"] = round(kayit["harcama"]["dolar"], 4)
+        return {"kimlik": kimlik, "sahneler": {str(k): v for k, v in sorted(sahneler.items())},
+                "is": kayit["is"], "harcama": kayit["harcama"],
+                "sayfalar": sorted(p.name for p in (self.klasor / kimlik).glob("sayfa_*.png"))}
+
+    def sayfalari_kur(self, kimlik: str, dunya) -> list[str]:
+        """Sayfaları şimdi dizer (görsel servisi gerekmez: paneller zaten çizildi)."""
+        return MangaUretici(dunya, None, self.klasor / kimlik).sayfalari_kaydet()
+
+
 class Oturum:
     """Sunucudaki tek oyun. Motor çağrıları saniyeler sürdüğü için kilitle korunur."""
 
     def __init__(self, llm_turu: str, model: str | None, kayit_klasoru: Path = KOK / "oturumlar",
-                 dunya_klasoru: Path = DUNYA_KLASORU, oyun_klasoru: Path = KOK / "kayitlar"):
+                 dunya_klasoru: Path = DUNYA_KLASORU, oyun_klasoru: Path = KOK / "kayitlar",
+                 manga_klasoru: Path = KOK / "manga"):
         self.llm_turu = llm_turu
         self.model = model
         self.kayit_klasoru = kayit_klasoru
@@ -79,6 +208,8 @@ class Oturum:
         self.motor: Motor | None = None
         self.kilit = threading.Lock()
         self.harcama = {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
+        self.manga_klasoru = manga_klasoru
+        self.manga = MangaIsci(manga_klasoru, llm_turu)
 
     def ayarlar(self) -> dict:
         return {
@@ -90,7 +221,81 @@ class Oturum:
             "varsayilan": {"dunya": "tuzhan", "bellek": "tam", "editor": "tam", "yazar": "hizli"},
             "llm": self.llm_turu,
             "oyun_var": self.motor is not None,
+            "manga": {"kaynaklar": self._manga_kaynaklari(), "stiller": list(MANGA_STILLERI),
+                      "varsayilan": MANGA_KAPALI},
         }
+
+    # ── Manga ────────────────────────────────────────────────────────────────
+
+    def _manga_kaynaklari(self) -> dict[str, bool]:
+        """Kaynak → .env'de adresi tanımlı mı. API'siz denemede ağsız 'sahte' kaynak da var."""
+        kaynaklar = hazir_kaynaklar()
+        if self.llm_turu == "sahte":
+            kaynaklar["sahte"] = True
+        return kaynaklar
+
+    def _manga_ayari(self, m: dict | None) -> dict:
+        m = m or {}
+        ayar = {"acik": bool(m.get("acik")), "kaynak": m.get("kaynak") or "yerel",
+                "stil": m.get("stil") or "siyahbeyaz"}
+        if ayar["stil"] not in MANGA_STILLERI:
+            raise ValueError(f"Bilinmeyen manga stili: {ayar['stil']}")
+        if ayar["kaynak"] not in self._manga_kaynaklari():
+            raise ValueError(f"Bilinmeyen görsel kaynağı: {ayar['kaynak']}")
+        if ayar["acik"]:
+            servis_olustur(ayar["kaynak"], ayar["stil"])     # adres yoksa burada anlaşılır hata
+        return ayar
+
+    def _manga_sahne(self, sahne) -> None:
+        m = self.ayar.get("manga") or MANGA_KAPALI
+        if m["acik"]:
+            self.manga.sahne_ekle(self.kimlik, self.ayar["dunya"], self.motor.dunya, sahne, m["kaynak"], m["stil"])
+
+    def manga_ayarla(self, m: dict) -> dict:
+        """Oynanan oyunda mangayı aç/kapa ya da kaynağı/stili değiştir. Açılınca son sahne çizilir."""
+        with self.kilit:
+            if self.motor is None:
+                raise ValueError("Önce bir oyun başlat.")
+            eski = self.ayar.get("manga") or MANGA_KAPALI
+            self.ayar["manga"] = self._manga_ayari(m)
+            self._kaydet()
+            if self.ayar["manga"]["acik"] and not eski["acik"] and self.motor.durum.sahneler:
+                self._manga_sahne(self.motor.durum.sahneler[-1])
+            return {"manga": self.ayar["manga"], **self.manga.durum(self.kimlik)}
+
+    def manga_durumu(self, kimlik: str | None = None) -> dict:
+        kimlik = kimlik or self.kimlik
+        if not kimlik or not KAYIT_KIMLIGI.match(kimlik):
+            raise ValueError("Geçersiz oyun kimliği.")
+        return self.manga.durum(kimlik)
+
+    def _kayitli_oyun(self, kimlik: str):
+        veri = oyun_oku(self.oyun_klasoru, kimlik)
+        dunya_kimligi = veri["ayar"]["dunya"]
+        if not (self.dunya_klasoru / f"{dunya_kimligi}.yaml").exists():
+            raise ValueError(f"Bu oyunun dünya dosyası artık yok: {dunya_kimligi}")
+        dunya = dunya_yukle(self.dunya_klasoru / f"{dunya_kimligi}.yaml")
+        return dunya_kimligi, dunya, durum_yukle(veri["oyun"]["durum"]).sahneler
+
+    def manga_kayittan(self, kimlik: str, m: dict | None) -> dict:
+        """Kayıtlı bir oyunun tamamından manga: çizilmemiş sahneler + sayfalar, arka planda."""
+        ayar = self._manga_ayari({**(m or {}), "acik": True})
+        dunya_kimligi, dunya, sahneler = self._kayitli_oyun(kimlik)
+        if not sahneler:
+            raise ValueError("Bu oyunda henüz sahne yok.")
+        self.manga.kayit_ekle(kimlik, dunya_kimligi, dunya, sahneler, ayar["kaynak"], ayar["stil"])
+        return self.manga.durum(kimlik)
+
+    def manga_sayfalari(self, kimlik: str) -> dict:
+        """Çizilmiş panellerden sayfaları şimdi dizer."""
+        if not KAYIT_KIMLIGI.match(kimlik or ""):
+            raise ValueError("Geçersiz oyun kimliği.")
+        if kimlik == self.kimlik and self.motor is not None:
+            dunya = self.motor.dunya
+        else:
+            dunya = self._kayitli_oyun(kimlik)[1]
+        self.manga.sayfalari_kur(kimlik, dunya)
+        return self.manga.durum(kimlik)
 
     def _motor_kur(self, dunya: str, bellek: str, editor: str, yazar: str,
                    kayit_yolu: Path | None = None) -> Motor:
@@ -116,15 +321,18 @@ class Oturum:
         return Motor(d, llm, Bellek(bellek), kayitci, editor=Editor(editor),
                      editor_llm=editor_llm, ozet_llm=ozet_llm)
 
-    def yeni(self, dunya: str, bellek: str, editor: str, yazar: str = "hizli") -> dict:
+    def yeni(self, dunya: str, bellek: str, editor: str, yazar: str = "hizli", manga: dict | None = None) -> dict:
         if dunya not in self.ayarlar()["dunyalar"]:
             raise ValueError(f"Bilinmeyen dünya: {dunya}")
+        manga_ayari = self._manga_ayari(manga)
         with self.kilit:
             self.motor = self._motor_kur(dunya, bellek, editor, yazar)
+            self.ayar["manga"] = manga_ayari
             self.kimlik = self.motor.kayitci.kimlik
             self.harcama = {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
             sahne = self.motor.basla()
             self._kaydet()
+            self._manga_sahne(sahne)
             return self._yanit(sahne)
 
     def oyna(self, eylem: str) -> dict:
@@ -138,6 +346,7 @@ class Oturum:
                 raise ValueError("Önce yeni bir oyun başlat.")
             sahne = self.motor.oyna(eylem)
             self._kaydet()
+            self._manga_sahne(sahne)
             return self._yanit(sahne)
 
     # ── Kayıtlı oyunlar ──────────────────────────────────────────────────────
@@ -165,6 +374,7 @@ class Oturum:
             motor = self._motor_kur(a["dunya"], a["bellek"], a["editor"], a["yazar"],
                                     kayit_yolu=self.kayit_klasoru / f"{veri['kayit']}.jsonl")
             motor.yukle(veri["oyun"])
+            self.ayar["manga"] = {**MANGA_KAPALI, **(a.get("manga") or {})}
             self.motor, self.kimlik = motor, kimlik
             self.harcama = veri.get("harcama") or {"girdi": 0, "cikti": 0, "dolar": 0.0, "bilinmiyor": False}
             return {"oyun_var": True, "sahneler": [self._sahne(s) for s in motor.durum.sahneler],
@@ -208,6 +418,7 @@ class Oturum:
                 raise ValueError("Yeniden yazılacak sahne yok.")
             sahne = self.motor.yeniden_yaz()
             self._kaydet()
+            self._manga_sahne(sahne)          # yeniden yazılan sahnenin panelleri de yenilenir
             return self._yanit(sahne)
 
     def durum(self) -> dict:
@@ -277,6 +488,8 @@ class Oturum:
                         "tam_degil": self.harcama["bilinmiyor"]},
             "ayar": {"bellek": m.bellek.strateji, "editor": m.editor.mod if m.editor else "yok",
                      "yazar": self.yazar, "model": m.llm.ad},
+            "kimlik": self.kimlik,
+            "manga": self.ayar.get("manga") or MANGA_KAPALI,
         }
 
     def _editor_ozeti(self) -> dict | None:
@@ -311,6 +524,14 @@ class Oturum:
 def isleyici_olustur(oturum: Oturum):
     class Isleyici(BaseHTTPRequestHandler):
         def do_GET(self):
+            yol = urlsplit(self.path)
+            if yol.path.startswith("/manga/"):
+                return self._manga_dosyasi(yol.path)
+            if yol.path == "/api/manga":
+                try:
+                    return self._json(200, oturum.manga_durumu(parse_qs(yol.query).get("kimlik", [None])[0]))
+                except ValueError as e:
+                    return self._json(400, {"hata": str(e)})
             if self.path in ("/", "/index.html"):
                 self._gonder(200, (WEB_KLASORU / "index.html").read_bytes(), "text/html; charset=utf-8")
             elif self.path == "/api/ayarlar":
@@ -328,7 +549,8 @@ def isleyici_olustur(oturum: Oturum):
                 govde = json.loads(self.rfile.read(uzunluk) or b"{}") if uzunluk else {}
                 if self.path == "/api/yeni":
                     self._json(200, oturum.yeni(govde.get("dunya", "tuzhan"), govde.get("bellek", "tam"),
-                                                govde.get("editor", "tam"), govde.get("yazar", "hizli")))
+                                                govde.get("editor", "tam"), govde.get("yazar", "hizli"),
+                                                govde.get("manga")))
                 elif self.path == "/api/oyna":
                     self._json(200, oturum.oyna(govde.get("eylem", "")))
                 elif self.path == "/api/yeniden":
@@ -341,6 +563,12 @@ def isleyici_olustur(oturum: Oturum):
                     self._json(200, oturum.kayit_sil(govde.get("kimlik", "")))
                 elif self.path == "/api/dunya/taslak":
                     self._json(200, oturum.dunya_taslagi(govde))
+                elif self.path == "/api/manga/ayar":
+                    self._json(200, oturum.manga_ayarla(govde))
+                elif self.path == "/api/manga/kayit":
+                    self._json(200, oturum.manga_kayittan(govde.get("kimlik", ""), govde))
+                elif self.path == "/api/manga/sayfalar":
+                    self._json(200, oturum.manga_sayfalari(govde.get("kimlik", "")))
                 else:
                     self._json(404, {"hata": "Bulunamadı."})
             except KurucuHatasi as e:
@@ -351,6 +579,27 @@ def isleyici_olustur(oturum: Oturum):
                 self._json(502, {"hata": f"Model geçerli bir sahne üretemedi, tekrar dene. ({e})"})
             except Exception as e:                 # ağ hatası, API anahtarı vb.
                 self._json(500, {"hata": f"{type(e).__name__}: {e}"})
+
+        def _manga_dosyasi(self, yol: str) -> None:
+            """/manga/<kimlik>/<dosya>.png ya da /manga/<kimlik>/ (sayfaların galerisi)."""
+            parcalar = yol.split("/")[2:]
+            kimlik = parcalar[0] if parcalar else ""
+            dosya = parcalar[1] if len(parcalar) > 1 else ""
+            if len(parcalar) > 2 or not KAYIT_KIMLIGI.match(kimlik) or (dosya and not MANGA_DOSYASI.match(dosya)):
+                return self._json(404, {"hata": "Bulunamadı."})
+            klasor = oturum.manga_klasoru / kimlik
+            if dosya:
+                if not (klasor / dosya).is_file():
+                    return self._json(404, {"hata": "Bulunamadı."})
+                return self._gonder(200, (klasor / dosya).read_bytes(), "image/png")
+            sayfalar = sorted(klasor.glob("sayfa_*.png"))
+            govde = "".join(f'<img src="{p.name}" alt="Sayfa {i}">' for i, p in enumerate(sayfalar, 1)) \
+                or "<p>Henüz sayfa yok. Oyunlar penceresinden mangayı oluştur.</p>"
+            self._gonder(200, ("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+                               "<title>Manga</title><style>body{margin:0;background:#2b2b2b;color:#eee;"
+                               "font-family:sans-serif;text-align:center}img{display:block;max-width:min(100%,900px);"
+                               "margin:16px auto;box-shadow:0 2px 12px #000}</style>" + govde).encode("utf-8"),
+                       "text/html; charset=utf-8")
 
         def _json(self, kod: int, veri: dict) -> None:
             self._gonder(kod, json.dumps(veri, ensure_ascii=False).encode("utf-8"),

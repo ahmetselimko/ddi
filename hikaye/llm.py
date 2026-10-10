@@ -181,6 +181,10 @@ class SahteLLM:
             return LLMYanit(metin=json.dumps(self._editor_yaniti(n, kullanici), ensure_ascii=False), sure=0.0)
         if "dünya tasarlayan" in sistem:
             return LLMYanit(metin=json.dumps(self.DUNYA_TASLAGI, ensure_ascii=False), sure=0.0)
+        if "manga sahne planlayıcısısın" in sistem:
+            return LLMYanit(metin=json.dumps(self._manga_plani(kullanici), ensure_ascii=False), sure=0.0)
+        if "görsel etiket yazarısın" in sistem:
+            return LLMYanit(metin=json.dumps(self._gorunum_etiketleri(kullanici), ensure_ascii=False), sure=0.0)
         k = self._karakterler[n % len(self._karakterler)]
         veri = {
             "akis": [
@@ -194,6 +198,25 @@ class SahteLLM:
             "secenekler": [f"Seçenek {n}.{i}" for i in (1, 2, 3)],
         }
         return LLMYanit(metin=json.dumps(veri, ensure_ascii=False), sure=0.0)
+
+    @staticmethod
+    def _manga_plani(kullanici: str) -> dict:
+        """Açılış paneli + ilk repliği söyleyen karakterin paneli."""
+        ids = re.findall(r"^- \[([^\]]+)\]", kullanici, re.M)
+        return {"paneller": [
+            {"kamera": "genis", "karakterler": [], "eylem_en": "dusk, wind, dust", "replikler": [],
+             "anlatim": "Rüzgâr tuz taşıyor."},
+            {"kamera": "orta", "karakterler": ids[:1], "eylem_en": "talking, serious expression",
+             "replikler": [0] if "[R0]" in kullanici else [], "anlatim": ""},
+        ]}
+
+    @staticmethod
+    def _gorunum_etiketleri(kullanici: str) -> dict:
+        karakter_bolumu, _, mekan_bolumu = kullanici.partition("MEKÂNLAR:")
+        bul = lambda metin: re.findall(r"^- \[([^\]]+)\]", metin, re.M)   # noqa: E731
+        return {"dunya": "sahte town, old times",
+                "karakterler": {i: f"1other, sahte {i}" for i in bul(karakter_bolumu)},
+                "mekanlar": {i: f"sahte place {i}" for i in bul(mekan_bolumu)}}
 
     # Birbiriyle ve demo kanonla örtüşmeyen metinler: editörün tekrar denetimi bunları ayrı sayar
     YENI_OLGULAR = ["Kuyunun ipi yepyeni.", "Ahırın kapısı mavi boyalı.", "Demirhanenin çatısı akıyor.",

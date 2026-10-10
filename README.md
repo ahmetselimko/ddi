@@ -159,6 +159,40 @@ yaz** da çalışmaya devam eder. Tur kayıtları aynı `oturumlar/*.jsonl` dosy
 sürer, yani ölçüm verisi bölünmez. Kayıt, yazılırken bozulmasın diye önce geçici dosyaya
 yazılıp sonra yerine konur.
 
+## Manga (isteğe bağlı)
+
+Oynanan sahnelerden manga panelleri ve sayfaları çıkarır. **Varsayılan kapalı**, çünkü görsel
+üretimi ek maliyet demek. Kapalıyken hiçbir şey çizilmez ve hiçbir yere gönderilmez.
+
+- **Oyun sırasında:** Oyunlar penceresinde "Manga" seçilir (siyah-beyaz ya da renkli) ve bir
+  görsel kaynağı seçilir. Her sahneden sonra paneller arka planda çizilir, oyun beklemez.
+  Paneller sahnenin altında görünür; **Yeniden yaz** o sahnenin panellerini de yeniler. Başlamış
+  bir oyunda üstteki **Manga** düğmesiyle açılabilir.
+- **Kayıttan:** Kayıtlı oyunlar listesindeki **Manga** düğmesi oyunun tamamını çizer
+  (daha önce çizilmiş sahneleri atlar) ve sayfaları dizer.
+
+Nasıl çalışır ([hikaye/manga.py](hikaye/manga.py)):
+
+1. **Görünüm:** Her karakterin ve mekânın İngilizce görsel tarifi (`prompt_en`). Dünya
+   dosyasında yoksa model bir kez üretir, `manga/_gorunum/<dünya>.json` dosyasına yazar.
+   Böylece bir karakter her panelde aynı tarifle çizilir.
+2. **Plan:** Model her sahneyi 2-4 panele böler. Her panel için kamerayı (geniş/orta/yakın),
+   panelde görünenleri, İngilizce eylemi ve hangi repliğin hangi panele gireceğini belirler.
+   Planı kod doğrular: bilinmeyen karakter ve Türkçe etiket atılır, konuşan karakter panele
+   eklenir. Model yanıt veremezse kod basit bir plan kurar. Sahne başına bir Gemini çağrısı;
+   sahne metni zaten Gemini'ye gittiği için yeni bir paylaşım yok.
+3. **Çizim:** Görsel servisi (`yerel`, `runpod` ya da `api`; hepsi aynı HTTP arayüzü) PNG
+   döndürür. Adresler `.env` içinde (`MANGA_*_ADRES`, `MANGA_*_TOKEN`). Türkçe metin
+   görsele gömülmez.
+4. **Sayfa:** Paneller A4 sayfaya dizilir; konuşma balonları ve anlatım kutuları Pillow ile
+   Türkçe yazılır. Sayfalar `http://127.0.0.1:8000/manga/<oyun>/` adresinde açılır.
+
+Çıktı `manga/<oyun>/` klasöründedir (git'e girmez): paneller, `paneller.json` (her panelin
+istemi, seed'i, replikleri) ve `sayfa_01.png`...
+
+Görsel servisinin kendisi bu depoda değil. Görsel modeli henüz seçilmedi: ilk denemede
+(Animagine XL, NoobAI XL) sonuçlar beğenilmedi, doğal dil anlayan modeller deneniyor.
+
 ## Kendi dünyanı kur
 
 Web arayüzünde **Dünya kur** (ya da **Oyunlar** penceresinde "+ Kendi dünyanı kur"):
@@ -191,7 +225,9 @@ Nehir Hanım'da; kervanda on bir deve vardı...), çünkü tutarlılık bunlara 
 
 Başka bir dünya için aynı biçimde yeni bir YAML yazıp `--dunya` ile verin. Karakterlerde
 `adlar` alanına **yalnızca özel adlar** yazın: "yabancı", "çocuk" gibi sıradan kelimeler her
-geçtikleri yerde o karakter sanılır. `gorunen_ad`, oyuncu tanışmadan önceki etikettir.
+geçtikleri yerde o karakter sanılır. `gorunen_ad`, oyuncu tanışmadan önceki etikettir. Manga için isteğe bağlı alanlar:
+karakterde `gorunum` (`sac`, `yuz`, `kiyafet`, `ayirt_edici`, `prompt_en`), mekânda
+`prompt_en`, dünyada `gorsel_en` (dönem/ortam). Tuzhan'da hepsi dolu.
 
 ## Klasörler
 
@@ -210,12 +246,14 @@ hikaye/
   llm.py             dil modeli arka uçları
   motor.py           tur döngüsü ve yanıt doğrulama
   kayit.py           tur kaydı (JSONL) ve devam edilebilir oyun kaydı
+  manga.py           manga: görünüm, panel planı, görsel servisi, sayfa ve balonlar
 docs/                proje günlüğü
 dunyalar/            dünya dosyaları
 ilkeler/             usta yazar ölçütleri ve kaynak özetleri
 testler/             birim testleri
 oturumlar/           tur kayıtları, ölçüm verisi (git'e girmez)
 kayitlar/            devam edilebilir oyun kayıtları (git'e girmez)
+manga/               manga panelleri ve sayfaları (git'e girmez)
 ```
 
 ## Bilinen eksikler
@@ -257,6 +295,14 @@ Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görü
 - `yerel` arka ucu gerçek bir yerel modelle denenmedi; testler yalnızca sahte modelle çalışıyor.
 - Yalnızca Türkçe. Kök bulma kaba (ilk 5 harf); kısa köklerde getirim kaçırabiliyor.
 
+**Manga**
+- Görsel modeli seçilmedi; panellerin gerçek bir modelle nasıl göründüğü henüz bilinmiyor.
+  Seçilecek model düz İngilizce cümle isterse `prompt_en` biçimi değişecek.
+- Karakter tutarlılığı yalnızca aynı görünüm tarifine dayanıyor; karaktere özel model (LoRA)
+  ya da referans görsel yok. Aynı karakter panelden panele farklı görünebilir.
+- Balonlar panelin üstüne sırayla dizilir; yüzlerin üstüne gelip gelmediğine bakılmaz.
+- Komut satırında (`oyun.py`) manga yok; yalnızca web arayüzünde.
+
 ## Yol haritası
 
 - [x] Oynanabilir çekirdek, tüm hikâyeyi hatırlayan bellek, kayıt
@@ -270,6 +316,8 @@ Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görü
 - [ ] Editörün en çok hata yaptığı iş için küçük, kendi eğittiğimiz bir model (ör. BERTurk ile
   çelişki tespiti); ~20-30 oyun ve 200-300 elle düzeltilmiş örnek biriktikten sonra
 - [ ] Maliyet: istem önbelleği, kısa editör çıktısı
+- [x] Manga: panel planı, sayfa dizme, Türkçe balonlar, ayar (varsayılan kapalı)
+- [ ] Manga: görsel modelinin seçimi ve gerçek panellerle deneme
 
 ## Yapay zekâ kullanımı
 

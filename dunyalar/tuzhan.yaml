@@ -7,6 +7,8 @@ ad: Tuzhan
 ton: >-
   Gizemli, tozlu ve sıcak. Masalsı ama ciddi; mizah küçük anlarda.
   Şiddet ancak kaçınılmazsa ve ölçülü.
+# Manga: her panele eklenen dönem/ortam etiketleri
+gorsel_en: historical anatolian desert town, caravan route, pre-modern
 oyuncu: >-
   Kasabaya yeni gelen genç bir haritacı. Kırk gündür haber alınamayan Sarıca
   kervanının izini sürmek için bir tüccar loncası tarafından tutuldu. Yanında
@@ -39,22 +41,27 @@ mekanlar:
     ad: Tuzhan Kervansarayı
     adlar: [kervansaray*, han, hana, hanın, handa, handan, hanı, hanına]
     tanim: Kasabanın ortasındaki taş kervansaray. Avlu, ahır, mutfak ve üst katta on iki oda.
+    prompt_en: stone caravanserai, arched galleries around a courtyard, stable, lanterns
   - id: demirhane
     ad: Demirhane
     adlar: [demirhane*]
     tanim: Hanın arkasında, kömür kokulu dar bir atölye. Duvarlarda nal ve zincir asılı.
+    prompt_en: narrow cramped forge, coal smoke, horseshoes and chains hanging on walls, anvil
   - id: katiplik
     ad: Kâtiplik
     adlar: [kâtiplik*, katiplik*]
     tanim: Kasabanın kayıtlarının tutulduğu tek odalı kerpiç yapı. Raflar defter dolu.
+    prompt_en: small mud-brick room, shelves full of ledgers, writing desk, inkwell
   - id: tuz_golu
     ad: Kuru Tuz Gölü
     adlar: [göl, gölü*, göle, gölde, gölden, gölün*, düzlüğ*]
     tanim: Kasabanın doğusunda, ufka kadar uzanan beyaz, çatlak tuz düzlüğü.
+    prompt_en: vast white cracked salt flat, empty horizon, harsh sunlight
   - id: kule
     ad: Yıkık Gözetleme Kulesi
     adlar: [kule*]
     tanim: Gölün kıyısındaki eski taş kule.
+    prompt_en: ruined stone watchtower, broken stairs, on the edge of a salt flat
 
 karakterler:
   - id: nehir
@@ -64,6 +71,12 @@ karakterler:
     yer: han
     imza: [evlat]
     tanim: Hanın sahibi, elli yaşlarında, iri yapılı bir kadın.
+    gorunum:
+      sac: Kalın örgülü, kırlaşmış saç
+      yuz: Sert bakışlı, geniş yüzlü
+      kiyafet: Uzun koyu entari, önlük, sıvalı kollar
+      ayirt_edici: İri yapı
+      prompt_en: 1woman, mature female, 50 years old, large build, broad shoulders, greying hair in a thick braid, stern face, long dark dress, apron, rolled-up sleeves
     kisilik: Sert ve şüpheci ama misafirini korur. Kasabanın dedikodusunu bilir, kolay paylaşmaz.
     konusma: >-
       Kısa, emir kipinde cümleler. Herkese "evlat" diye hitap eder. Soru
@@ -78,6 +91,12 @@ karakterler:
     gorunen_ad: Genç kâtip
     yer: katiplik
     tanim: Kasabanın resmî kâtibi, yirmili yaşlarında, parmakları mürekkep lekeli bir genç kadın.
+    gorunum:
+      sac: Uzun, düz, siyah; ensede bağlı
+      yuz: İnce yüz, dikkatli gözler
+      kiyafet: Sade kâtip cübbesi, belde hokka
+      ayirt_edici: Mürekkep lekeli parmaklar
+      prompt_en: 1girl, young woman, 20s, slim, long straight black hair tied low, attentive eyes, plain scribe robe, inkwell at belt, ink-stained fingers
     kisilik: Meraklı, titiz, kuralcı. Kayıp kervanı ciddiye alan tek kişi.
     konusma: >-
       Uzun, kitabi cümleler kurar; sık sık tarih ve sayı verir. Heyecanlanınca
@@ -92,6 +111,12 @@ karakterler:
     gorunen_ad: Yaşlı demirci
     yer: demirhane
     tanim: Altmışlarında, kolları yanık izleriyle dolu, yavaş hareket eden bir demirci.
+    gorunum:
+      sac: Kel, kısa beyaz sakal
+      yuz: Kırışık, yorgun gözler
+      kiyafet: Deri demirci önlüğü
+      ayirt_edici: Kollarında yanık izleri
+      prompt_en: 1man, old man, 60s, bald, short white beard, wrinkled face, tired eyes, leather blacksmith apron, burn scars on forearms
     kisilik: Az konuşur, çok dinler. Kimseye borçlu kalmaz. Tuz gölünden korkar ama bunu saklar.
     konusma: >-
       Çok kısa cevaplar verir, sık sık atasözü kullanır. Kimseye hitap etmez:
@@ -107,6 +132,12 @@ karakterler:
     yer: demirhane
     imza: [abi, abla]
     tanim: Oruç'un on yaşındaki yeğeni. Çıplak ayaklı, her yere giren bir çocuk.
+    gorunum:
+      sac: Kısa, dağınık
+      yuz: Meraklı, sırıtan
+      kiyafet: Yamalı gömlek
+      ayirt_edici: Yalınayak, toz içinde dizler
+      prompt_en: 1boy, child, 10 years old, barefoot, messy short hair, curious grin, patched shirt, dusty knees
     kisilik: Cesur, lafı bitmeyen, sır tutamayan. Mavi ışıkları gördüğüne yemin eder.
     konusma: >-
       Nefes almadan konuşur, cümleleri "ve sonra" ile birbirine bağlar.
@@ -121,6 +152,12 @@ karakterler:
     yer: han
     imza: [sevgili dostum]
     tanim: İki gün önce kasabaya gelen, yüzünü pelerininin gölgesinde tutan biri.
+    gorunum:
+      sac: Görünmüyor
+      yuz: Kukuletanın gölgesinde, yalnızca çene görünüyor
+      kiyafet: Uzun mavi pelerin, yol çizmeleri
+      ayirt_edici: Mavi pelerin
+      prompt_en: 1other, hooded figure, long blue cloak, face hidden in hood shadow, only chin visible, travel boots
     kisilik: Sakin, alaycı, her şeyi bildiğini ima eder. Asıl amacını saklar.
     konusma: Sorulara soruyla cevap verir. Nazik ama mesafeli; "sevgili dostum" der.
     ornek_replikler:
