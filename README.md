@@ -72,7 +72,7 @@ Bazı sorunları modele sormak yerine kod her seferinde aynı şekilde yakalar. 
 | Konuşmayan karakter | Sahnedeki karakterler hiç konuşmadıysa uyarı |
 | Bilinmeyen id | Dünyada olmayan karakter/mekân uydurulursa uyarı; konuşan adındaki küçük yazım kaymaları düzeltilir |
 | Eylem ön denetimi | Eylemde geçen ama oyuncuda olmayan eşya (kılıç, ip, fener... Türkçe/İngilizce), daha önce elden çıkmış eşya ya da parasını aşan ödeme: yazara eylemin hemen önünde kesin not |
-| Eşya ve akçe | Yazar her sahnede oyuncunun eşya/para değişimini bildirir; kod denetler (olmayan eşya çıkamaz, yetmeyen para ödenemez), geçmezse yazardan bir kez düzeltmesini ister. Editörün sahneden çıkardığı değişiklik ikinci sinyaldir: yazar bildirmeyi unuttuysa o uygulanır, ikisi farklıysa "envanter uyuşmazlığı" kayda geçer. Olmayan eşyayı kullanan seçenek uyarı üretir |
+| Eşya ve akçe | Oyuncunun üzerindekiler takip edilir; olmayan eşya çıkarılamaz, yetmeyen akçe ödenemez; olmayan eşyayı kullanan seçenek uyarı üretir |
 | Zaman | Gece/akşamdan sabaha geçilince gün sayısı ilerler; zaman geri gidemez |
 | Ses karışması | Bir karakter başka birinin imza sözünü (Nehir'in "evlat"ı) kullanırsa uyarı |
 
@@ -102,18 +102,6 @@ düzeltmeler kayıtta `editor.otomatik` altında durur, editörün hata oranı b
 Editör her tur bir model çağrısı daha demek, yani süre yaklaşık iki katına çıkar.
 Editör geçerli yanıt veremezse oyun durmaz; o tur editörsüz devam eder.
 
-**Çelişki kararı alıntı ister.** Editör "çelişiyor" dediğinde sahneden çelişen cümleyi aynen
-göstermek zorundadır; kod bu cümlenin sahnede gerçekten geçtiğini denetler, geçmiyorsa karar
-atılır (`otomatik.alintisiz_celiski`). Bir karakterin kanona aykırı sözü, kişiliğine göre yalan
-olabiliyorsa çelişki sayılmaz (`otomatik.yalan_sayilan`). Olayların sonucunda değişen durum (yer
-değiştirme, harcanan eşya, geçen zaman) çelişki değil, yeni olaydır.
-
-**Kim neyi biliyor.** Dünya olgularının `bilen` alanı vardır (aşağıda). Yazara ve editöre giden
-olgular "(oyuncu bilmiyor)" ya da "(gizli: yalnızca X bilir)" diye etiketlenir: karakterler
-bilineni söyleyebilir, ama anlatım ve seçenekler oyuncu öğrenmeden onu biliyormuş gibi davranmaz.
-Editör her sahnede oyuncunun neyi kimden öğrendiğini çıkarır; söyleyen karakter o olguyu
-bilemiyorsa kod bunu bilgi sızıntısı sayar.
-
 ## Yazar modeli
 
 | `--yazar` / web'de "Yazar modeli" | Ne | Tur başına |
@@ -131,26 +119,6 @@ eşya/akçe değişimi ve olguları editör çıkarır.
 Yazar, editör ve özet farklı modellerle çalışabilir (`--editor-model`, `--ozet-model`
 ya da `.env` içinde `EDITOR_MODEL`, `OZET_MODEL`). Özet basit bir iş, ucuz model yeter;
 editör ise ölçümlerin kaynağı, zayıf model ölçümü de zayıflatır.
-
-## Ölçüm
-
-```bash
-python olcum.py rapor                       # oturumlar/*.jsonl → tutarlılık raporu (ücretsiz)
-python olcum.py enjeksiyon --ornek 25       # editörü bilinen çelişkilerle sına (ücretli, ~$0,15)
-```
-
-- **rapor:** Kayıtlardaki editör ve kod bulgularını sayar: 10 bin sözcük başına çelişki (CED,
-  ConStory-Bench'teki ölçüt), 10 turluk dilimler, karakter sapmaları, oyuncuya bilgi sızıntısı,
-  kod uyarıları türlerine göre, editörün başarısız olduğu turlar, token ve maliyet. Bunlar
-  editörün *dediği* şeylerdir.
-- **enjeksiyon:** Editörün ne kadar *doğru* dediğini ölçer (FlawedFictions yöntemi). Gerçek oyun
-  kayıtlarından sahneler seçilir; model, sahneyle ilgili bir dünya olgusuyla açıkça çelişen tek bir
-  cümle yazar ve cümle sahneye eklenir. Editör orijinal ve bozulmuş sahneyi ayrı ayrı denetler.
-  Ölçütler: çelişkiyi doğru olguyla yakalama, alıntının doğruluğu, dokunulmamış sahnede alarm.
-  `--onceki` ile başka bir koşunun aynı sahneleri ve aynı cümleleri kullanılır (önce/sonra).
-  Ayrıntılar sahne metinleri içerdiği için `olcumler/ham/` altına yazılır (git'e girmez).
-
-Sonuçlar: [docs/OLCUM.md](docs/OLCUM.md).
 
 ## Bellek
 
@@ -255,11 +223,6 @@ Nehir Hanım'da; kervanda on bir deve vardı...), çünkü tutarlılık bunlara 
 ölçülecek. Karakterlerin konuşma üslupları da ölçülebilir işaretler taşıyor
 ("evlat", "abi/abla", "sevgili dostum").
 
-Olgularda isteğe bağlı `bilen` alanı kimin bildiğini söyler: karakter id'leri, `herkes`
-(kasabalılar bilir; yazılmazsa varsayılan) ve `oyuncu` (oyuncu oyuna bunu bilerek başlar).
-Yalnızca karakter id'leri yazılan olgu sırdır. Dünya kurucuda karakter sırları kendiliğinden
-yalnızca o karaktere ait olur.
-
 Başka bir dünya için aynı biçimde yeni bir YAML yazıp `--dunya` ile verin. Karakterlerde
 `adlar` alanına **yalnızca özel adlar** yazın: "yabancı", "çocuk" gibi sıradan kelimeler her
 geçtikleri yerde o karakter sanılır. `gorunen_ad`, oyuncu tanışmadan önceki etikettir. Manga için isteğe bağlı alanlar:
@@ -300,27 +263,24 @@ Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görü
 
 **Hikâye kalitesi**
 - Anlatım bazen oyuncunun bilmediği bir şeyi sızdırıyor: henüz öğrenilmemiş bir akrabalık
-  ("amcasının"), seçeneklerde daha duyulmamış bir ayrıntı. Olgulara `bilen` alanı ve istemde
-  etiketler eklendi; etkisi gerçek oyunlarda henüz ölçülmedi.
+  ("amcasının"), seçeneklerde daha duyulmamış bir ayrıntı.
 - Ara sıra döneme uymayan sözcük ya da ayrıntı çıkıyor (Tuzhan'da "halüsinasyon", deve
   kervanında "tekerlek izi"). Dünya kuralı var, ama model her seferinde uymuyor.
 - Model kendi kurduğu dünyada tarih ve süreleri bazen birbiriyle çelişkili yazabiliyor. İsteme
   kural eklendi, gerçek modelle yeniden denenmedi.
 
 **Editör**
-- Gürültülü: yanlış alarm veriyor, bazı çelişkileri kaçırıyor, önemsiz olguları kanona
-  ekliyor. Çelişki kararı artık alıntıya bağlı; ölçülen etkisi [docs/OLCUM.md](docs/OLCUM.md)'de.
+- Gürültülü: yanlış alarm veriyor (5 + 1 akçeyi "çelişki" sayması gibi), bazı çelişkileri
+  kaçırıyor, önemsiz olguları kanona ekliyor.
 - Zanaat puanları neredeyse hep tam; ölçüt olarak ayırt edici değil.
 - Vaat ilerlemesinin kanıtı bazen zayıf.
-- Envanter artık yazarın bildirimine dayanıyor; ikisi birden kaçırırsa yine yanlış kalır.
+- Eşya ve para değişimini editör çıkarıyor; editör kaçırırsa envanter yanlış kalıyor.
 - Ara sıra geçerli yanıt veremiyor; o tur editörsüz geçiyor.
 
 **Ölçüm** (projenin amaçlarından biri)
-- Enjeksiyon deneyi editörün yalnızca açık, tek cümlelik çelişkileri yakalamasını ölçüyor;
-  ince çelişkiler, karakter sesi ve bilgi sızıntısı için bilinen doğru yok.
-- Editörün kararları insan tarafından etiketlenmedi; "dokunulmamış sahnede alarm" oranının ne
-  kadarının gerçek çelişki olduğu bilinmiyor (örneklerde ikisi gerçekti).
-- Örneklem küçük (25 sahne) ve tek bir dünyadan (Tuzhan) geliyor.
+- Tur kayıtları tutuluyor, ama kayıtlardan çelişki, sapma, sızıntı ve vaat sayılarını
+  çıkaran bir rapor betiği yok.
+- Editörün kendi doğruluğu elle kontrol edilmedi; editörün bulguları şimdilik "doğru" kabul ediliyor.
 - Bellek seçenekleri (`tam`, `ozet`, `kanon`...) karşılaştırılmadı.
 
 **Kullanım**
@@ -351,10 +311,8 @@ Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görü
 - [x] Web arayüzü, yeniden yaz, yazar modeli seçeneği
 - [x] Dünya kurucu: oyuncu fikrini yazar, model dünyayı kurar
 - [x] Kayıt ve devam
-- [x] Ölçüm: kayıtlardan tutarlılık raporu, editörü bilinen çelişkilerle sınayan enjeksiyon deneyi
-- [x] Araştırmadan: yazar envanter bildirir/kod doğrular, olgularda `bilen`, alıntılı çelişki
+- [ ] Oturum raporu: bir oyunun kaydından çelişki, sapma, sızıntı ve vaat sayılarını çıkaran betik
 - [ ] Editörün doğruluğunun elle kontrolü (~100 karar)
-- [ ] BERTurk + NLI-TR ile LLM dışı çelişki dedektörü (aynı enjeksiyon setinde karşılaştırma)
 - [ ] Editörün en çok hata yaptığı iş için küçük, kendi eğittiğimiz bir model (ör. BERTurk ile
   çelişki tespiti); ~20-30 oyun ve 200-300 elle düzeltilmiş örnek biriktikten sonra
 - [ ] Maliyet: istem önbelleği, kısa editör çıktısı
