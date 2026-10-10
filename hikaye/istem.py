@@ -160,6 +160,24 @@ def karakter_son_durumlari(dunya: Dunya, durum: Durum, karakterler, once: int | 
     return "\n".join(satirlar)
 
 
+def karakter_su_an(dunya: Dunya, durum: Durum, idler) -> str:
+    """Karakterlerin son bilinen yeri, üzerindekileri ve bedeni; ne zaman bilindiğiyle."""
+    satirlar = []
+    for kid in dict.fromkeys(idler):
+        kd = durum.karakter_durumlari.get(kid)
+        if kd is None or kid not in dunya.karakterler:
+            continue
+        yer = dunya.mekanlar[kd.konum].ad if kd.konum in dunya.mekanlar else "bilinmiyor"
+        ne_zaman = f"sahne {kd.goruldugu_sahne}'de görüldü" if kd.goruldugu_sahne else "oyun başındaki yeri"
+        parcalar = [f"{yer} ({ne_zaman})"]
+        if kd.esyalar:
+            parcalar.append(f"üzerinde: {', '.join(kd.esyalar)}")
+        if kd.beden:
+            parcalar.append(f"bedeni: {kd.beden} (sahne {kd.beden_sahnesi})")
+        satirlar.append(f"- {dunya.karakterler[kid].ad}: " + " · ".join(parcalar))
+    return "\n".join(satirlar)
+
+
 def sahne_metni(sahne: Sahne, dunya: Dunya) -> str:
     mekan = dunya.mekanlar[sahne.mekan].ad
     zaman = f", {sahne.zaman}" if sahne.zaman else ""
@@ -169,7 +187,7 @@ def sahne_metni(sahne: Sahne, dunya: Dunya) -> str:
 
 def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None = None,
                  zaman: str = "", taninan=(), eylemler=(), esyalar=None, akce: int | None = None,
-                 eylem_notlari=()) -> str:
+                 eylem_notlari=(), karakter_durumu: str = "") -> str:
     """Sıra bilinçli: arka plan (özet, olgular, kartlar) ve geçmiş sahneler başta; editörün
     uyarıları ve notu (ek) en sonda, oyuncunun eyleminin hemen önünde. Modeller üretime en
     yakın talimata daha çok uyar (AI Dungeon'daki "Author's Note" da buraya konur).
@@ -185,6 +203,9 @@ def sahne_istemi(dunya: Dunya, baglam, eylem: str | None, ek: list[str] | None =
         bolumler.append("[BİLİNEN OLGULAR]\n" + "\n".join(f"- {o}" for o in baglam.olgular))
     if baglam.karakter_kartlari:
         bolumler.append("[İLGİLİ KARAKTERLER]\n" + "\n\n".join(baglam.karakter_kartlari))
+    if karakter_durumu:
+        bolumler.append("[KARAKTERLERİN SON BİLİNEN DURUMU — yer, üzerindekiler, bedeni. Değiştiyse "
+                        "sahnede nedenini göster; yaralı biri yarasını unutmaz]\n" + karakter_durumu)
     if eylemler:
         bolumler.append("[OYUNCUNUN ŞİMDİYE KADAR YAPTIKLARI — karakterler bunları hatırlar; "
                         "tekrar sordurma, seçenek olarak tekrar önerme]\n"
@@ -247,9 +268,12 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     # Sahnede bulunanlar ve sahnede adı geçenler: "Selvi ağzı sıkıdır" gibi bir sözün
     # Selvi'nin kartıyla çeliştiğini görebilmek için Selvi sahnede olmasa da kartı gerekir
     ilgili = list(dict.fromkeys(sahne.karakterler + dunya.adi_gecenler(sahne.metin)))
-    kartlar = [dunya.karakterler[k].kart() for k in ilgili]
+    kartlar = [dunya.karakterler[k].kart(adlar=dunya.karakter_adlari) for k in ilgili]
     if kartlar:
         bolumler.append("[SAHNEDEKİ YA DA ADI GEÇEN KARAKTERLERİN KARTLARI]\n" + "\n\n".join(kartlar))
+    su_an = karakter_su_an(dunya, durum, ilgili)
+    if su_an:
+        bolumler.append("[BU KARAKTERLERİN SAHNEDEN ÖNCEKİ DURUMU]\n" + su_an)
     son_durumlar = karakter_son_durumlari(dunya, durum, sahne.karakterler, once=sahne.no)
     if son_durumlar:
         bolumler.append("[BU KARAKTERLERİN ŞİMDİYE KADAR YAŞADIKLARI]\n" + son_durumlar)
@@ -277,7 +301,10 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     gorevler = [
         "0. sahne_bilgisi: sahnenin SONUNDA oyuncu hangi mekânda (id), gün ve vakit ne (\"1. gün, gece\" "
         "gibi; zaman değişmediyse öncekini yaz), sahnede hangi karakterler bulunuyor (id'ler), oyuncunun "
-        "üzerindekilerde ne değişti (eline geçen, elinden çıkan eşyalar; para değişimi: ödediyse eksi).",
+        "üzerindekilerde ne değişti (eline geçen, elinden çıkan eşyalar; para değişimi: ödediyse eksi). "
+        "karakterler_degisen: bir KARAKTERİN üzerindekilerde (eline geçen, elinden çıkan eşya; oyuncuya "
+        "verdiği ya da oyuncudan aldığı dahil) ya da bedeninde (yaralandı, hastalandı; iyileştiyse \"iyi\") "
+        "bu sahnede kalıcı bir değişim olduysa; yoksa boş liste.",
         "1. iddialar: Sahnedeki somut ve kalıcı iddiaları çıkar: görünüş, sayılar, akrabalık, "
         "sahiplik, kim neyi biliyor, kesinleşen olaylar. Yalnızca ileride çelişilirse okurun fark "
         "edeceği, hikâyeye etkisi olan gerçekler. En fazla 6, bunlardan en fazla 3'ü yeni. "
@@ -317,7 +344,8 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
         "yaşadıklarına göre:\n"
         '   - kisilik: "uygun" ya da "sapma". Kartındaki kişiliğe VE yaşadıklarına uygun mu? (ör. şüpheci '
         "biri ilk tanıştığı yabancıya sırlarını döküyorsa sapma; az önce saldırıya uğrayan biri "
-        "saldırganına sıcak davranıp onu içeri davet ediyorsa sapma)\n"
+        "saldırganına sıcak davranıp onu içeri davet ediyorsa sapma; kartında yapamadığı yazan bir şeyi "
+        "kolayca yapıyorsa ya da üzerinde olmayan bir eşyayı kullanıyorsa sapma)\n"
         '   - konusma: "uygun" ya da "sapma" (kartındaki üsluba uymuyorsa ya da başka bir karakterin '
         "hitabını, kalıbını kullanıyorsa sapma)\n"
         '   - bilgi: "uygun" ya da "sizinti" (söylediğini bilemeyecekse sizinti: ör. oyuncunun kim '
@@ -360,7 +388,8 @@ def editor_istemi(dunya: Dunya, durum: Durum, sahne: Sahne, ilkeler: list[dict],
     bolumler.append(
         "JSON BİÇİMİ:\n{\n"
         '  "sahne_bilgisi": {"mekan": "mekân id\'si", "zaman": "gün ve vakit", "karakterler": ["id"], '
-        '"envanter": {"eklenen": [], "cikan": [], "akce": 0}},\n'
+        '"envanter": {"eklenen": [], "cikan": [], "akce": 0}, '
+        '"karakterler_degisen": [{"karakter": "id", "eklenen": [], "cikan": [], "beden": ""}]},\n'
         '  "iddialar": [{"metin": "iddia", "tur": "olay", "durum": "yeni, biliniyor ya da celisiyor", '
         '"olgu": "ilgili olgu ya da kural id\'si veya null", "ilgili": ["karakter/mekân id\'leri"]}],\n'
         '  "vaatler": {"acilan": ["yeni soru"], "ilerleyen": [{"id": "v1", "kanit": "..."}], '
@@ -393,7 +422,10 @@ _DUNYA_BICIMI = """{
                    "gorunus": "görünüşü", "gorunen_ad": "tanışmadan önce nasıl anılır, 2-3 sözcük",
                    "kisilik": "kişiliği", "konusma": "nasıl konuşur: cümle yapısı, hitap, alışkanlık",
                    "imza": ["yalnızca ona ait 1-3 sözcüklük hitap ya da kalıp"], "ornek": "ağzından çıkabilecek bir cümle",
-                   "sir": "oyuncunun hemen öğrenmediği sırrı", "yer": "genelde bulunduğu mekânın adı (yukarıdaki listeden)"}],
+                   "sir": "oyuncunun hemen öğrenmediği sırrı", "yer": "genelde bulunduğu mekânın adı (yukarıdaki listeden)",
+                   "hedef": "ne istiyor, bir cümle", "yapabildikleri": ["iyi yaptığı şey"],
+                   "yapamadiklari": ["beceremediği ya da asla yapmayacağı şey"], "esyalar": ["üzerinde taşıdığı"],
+                   "iliskiler": ["diğer bir karakterin adı: ona bakışı"]}],
   "gercekler": ["hikâye boyunca değişmeyecek somut gerçek", "..."],
   "acilis": {"mekan": "başlangıç mekânının adı", "zaman": "1. gün, vakit", "metin": "açılış sahnesi"}
 }"""

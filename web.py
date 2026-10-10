@@ -480,8 +480,31 @@ class Oturum:
             "ayar": {"bellek": m.bellek.strateji, "editor": m.editor.mod if m.editor else "yok",
                      "yazar": self.yazar, "model": m.llm.ad},
             "kimlik": self.kimlik,
+            "karakterler": self._karakter_ozeti(),
             "manga": self.ayar.get("manga") or MANGA_KAPALI,
         }
+
+    def _karakter_ozeti(self) -> list[dict]:
+        """Panel için: sahnelerde görülmüş karakterlerin değişen durumu. Sırlar, hedef ve oyun
+        başındaki eşyaları gösterilmez; yalnızca oyunda edindikleri."""
+        m = self.motor
+        dunya, d = m.dunya, m.durum
+        gorulen = dict.fromkeys(k for s in d.sahneler for k in s.karakterler if k in dunya.karakterler)
+        sonuc = []
+        for kid in gorulen:
+            k, kd = dunya.karakterler[kid], d.karakter_durumlari.get(kid)
+            if kd is None:
+                continue
+            tutum = [x.degisim for x in d.karakter_degisimleri if x.karakter == kid]
+            sonuc.append({
+                "ad": k.ad if kid in d.taninan else k.gorunen_ad,
+                "konum": dunya.mekanlar[kd.konum].ad if kd.konum in dunya.mekanlar else "bilinmiyor",
+                "goruldugu_sahne": kd.goruldugu_sahne,
+                "edindikleri": [e for e in kd.esyalar if e not in k.esyalar],
+                "beden": kd.beden,
+                "tutum": tutum[-1] if tutum else "",
+            })
+        return sonuc
 
     def _editor_ozeti(self) -> dict | None:
         b = self.motor.son_bulgular

@@ -77,6 +77,14 @@ karakterler:
       kiyafet: Uzun koyu entari, önlük, sıvalı kollar
       ayirt_edici: İri yapı
       prompt_en: 1woman, mature female, 50 years old, large build, broad shoulders, greying hair in a thick braid, stern face, long dark dress, apron, rolled-up sleeves
+    hedef: Hanını ve misafirlerini korumak; kervanların neden gelmediğini öğrenmek
+    yapabilir: [kalabalık bir mutfağı tek başına çevirir, sarhoşu kapı dışarı eder, kasabadaki her dedikoduyu duyar]
+    yapamaz: [sol eliyle ince iş yapamaz, uzun yol yürüyemez (dizleri ağrır)]
+    esyalar: [anahtar destesi]
+    iliskiler:
+      tekin: Yaramaz ama iyi çocuk; ona gizlice yemek verir
+      selvi: Kuralcılığını bıktırıcı bulur ama dürüstlüğüne güvenir
+      yabanci: Güvenmez; yedi numaralı odayı vermedi
     kisilik: Sert ve şüpheci ama misafirini korur. Kasabanın dedikodusunu bilir, kolay paylaşmaz.
     konusma: >-
       Kısa, emir kipinde cümleler. Herkese "evlat" diye hitap eder. Soru
@@ -97,6 +105,13 @@ karakterler:
       kiyafet: Sade kâtip cübbesi, belde hokka
       ayirt_edici: Mürekkep lekeli parmaklar
       prompt_en: 1girl, young woman, 20s, slim, long straight black hair tied low, attentive eyes, plain scribe robe, inkwell at belt, ink-stained fingers
+    hedef: Kayıp kervanın izini kayıtlarda sürmek
+    yapabilir: [okur yazar ve kayıt tutar, tarihleri ve sayıları ezbere bilir, eski defterlerde iz bulur]
+    yapamaz: [kavga edemez, kuralı çiğneyip defterleri izinsiz göstermez]
+    esyalar: [boynunda sandık anahtarı, kalem ve hokka]
+    iliskiler:
+      nehir: Saygı duyar ama dedikodusundan çekinir
+      oruc: Az konuşmasından şüphelenir
     kisilik: Meraklı, titiz, kuralcı. Kayıp kervanı ciddiye alan tek kişi.
     konusma: >-
       Uzun, kitabi cümleler kurar; sık sık tarih ve sayı verir. Heyecanlanınca
@@ -117,6 +132,13 @@ karakterler:
       kiyafet: Deri demirci önlüğü
       ayirt_edici: Kollarında yanık izleri
       prompt_en: 1man, old man, 60s, bald, short white beard, wrinkled face, tired eyes, leather blacksmith apron, burn scars on forearms
+    hedef: Körüğü onarıp işine dönmek; Tekin'i korumak
+    yapabilir: [nal, zincir ve bıçak döver, ağır yük taşır]
+    yapamaz: [okuma yazma bilmez, körük onarılmadan demir işleyemez]
+    esyalar: [çekiç, maşa]
+    iliskiler:
+      tekin: Yeğeni; sert davranır ama gözü üstündedir
+      yabanci: Huzursuz eder; uzak durur
     kisilik: Az konuşur, çok dinler. Kimseye borçlu kalmaz. Tuz gölünden korkar ama bunu saklar.
     konusma: >-
       Çok kısa cevaplar verir, sık sık atasözü kullanır. Kimseye hitap etmez:
@@ -138,6 +160,13 @@ karakterler:
       kiyafet: Yamalı gömlek
       ayirt_edici: Yalınayak, toz içinde dizler
       prompt_en: 1boy, child, 10 years old, barefoot, messy short hair, curious grin, patched shirt, dusty knees
+    hedef: Mavi ışıkları yeniden görmek ve büyüklere kanıtlamak
+    yapabilir: [her yere girer, çok hızlı koşar, kasabanın bütün kestirme yollarını bilir]
+    yapamaz: [sır tutamaz, okuma yazma bilmez]
+    esyalar: [parlak bir tuz taşı]
+    iliskiler:
+      oruc: Amcası; ondan çekinir ama çok sever
+      nehir: Ondan yemek koparır
     kisilik: Cesur, lafı bitmeyen, sır tutamayan. Mavi ışıkları gördüğüne yemin eder.
     konusma: >-
       Nefes almadan konuşur, cümleleri "ve sonra" ile birbirine bağlar.
@@ -158,6 +187,12 @@ karakterler:
       kiyafet: Uzun mavi pelerin, yol çizmeleri
       ayirt_edici: Mavi pelerin
       prompt_en: 1other, hooded figure, long blue cloak, face hidden in hood shadow, only chin visible, travel boots
+    hedef: Asıl amacını saklıyor; yedi numaralı odaya girmek istiyor
+    yapabilir: [insanları konuşturur, sessiz hareket eder]
+    yapamaz: [yüzünü göstermez]
+    esyalar: [mühürlü bir mektup, dolgun bir kese]
+    iliskiler:
+      nehir: Odayı vermediği için ona sabırla, tatlı dille yaklaşır
     kisilik: Sakin, alaycı, her şeyi bildiğini ima eder. Asıl amacını saklar.
     konusma: Sorulara soruyla cevap verir. Nazik ama mesafeli; "sevgili dostum" der.
     ornek_replikler:

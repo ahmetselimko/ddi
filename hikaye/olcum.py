@@ -40,6 +40,7 @@ UYARI_TURLERI = [
     ("eşya ve para", ("oyuncunun üzerinde olmayan", "seçenek oyuncuda olmayan", "eylem denetimi:")),
     ("envanter uyuşmazlığı", ("envanter uyuşmazlığı",)),
     ("zaman", ("zaman geri gidemez",)),
+    ("karakter durumu", ("karakter durumu reddedildi",)),
     ("biçim", ("bilinmeyen", "konuşan id'si", "akış yerine", "replikte bilinmeyen")),
 ]
 

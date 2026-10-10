@@ -72,6 +72,17 @@ class KarakterSapmasi:
 
 
 @dataclass
+class KarakterDurumu:
+    """Bir karakterin oyun içinde değişen hâli. konumu kod günceller (sahnede görüldüğü yer);
+    eşyalarını ve bedenini editör bildirir, kod doğrular."""
+    konum: str = ""
+    esyalar: list[str] = field(default_factory=list)
+    beden: str = ""                 # kalıcı bedensel durum: "sol kolu sarılı"; boşsa sağlıklı
+    goruldugu_sahne: int = 0        # 0: oyun başındaki yerinde, henüz görülmedi
+    beden_sahnesi: int = 0
+
+
+@dataclass
 class Durum:
     mekan: str
     zaman: str = ""
@@ -89,6 +100,7 @@ class Durum:
     karakter_sapmalari: list[KarakterSapmasi] = field(default_factory=list)
     editor_notu: str = ""
     zanaat_gecmisi: list[list[str]] = field(default_factory=list)   # sahne başına zayıf ölçütler
+    karakter_durumlari: dict[str, KarakterDurumu] = field(default_factory=dict)
 
     def olgu_ekle(self, metin: str, ilgili: list[str], sahne_no: int) -> OyunOlgusu:
         olgu = OyunOlgusu(id=f"y{len(self.olgular) + 1}", metin=metin,
@@ -128,6 +140,7 @@ def durum_yukle(s: dict) -> Durum:
         karakter_sapmalari=[KarakterSapmasi(**x) for x in s.get("karakter_sapmalari", [])],
         editor_notu=s.get("editor_notu", ""),
         zanaat_gecmisi=[list(z) for z in s.get("zanaat_gecmisi", [])],
+        karakter_durumlari={k: KarakterDurumu(**v) for k, v in (s.get("karakter_durumlari") or {}).items()},
     )
 
 
@@ -156,6 +169,29 @@ def envanter_oku(ham) -> dict:
     except (TypeError, ValueError):
         akce = 0
     return {"eklenen": liste("eklenen"), "cikan": liste("cikan"), "akce": akce}
+
+
+def karakter_degisimi_uygula(durum: Durum, degisenler: list[dict], sahne_no: int) -> list[str]:
+    """Editörün bildirdiği karakter eşya/beden değişimleri. Karakterde olmayan eşya çıkmaz;
+    reddedilenler uyarı olarak döner (kayda geçer, yazara gitmez)."""
+    uyarilar = []
+    for d in degisenler:
+        kd = durum.karakter_durumlari.get(d["karakter"])
+        if kd is None:
+            continue
+        for esya in d["cikan"]:
+            eslesen = _en_benzeyen(kd.esyalar, esya)
+            if eslesen:
+                kd.esyalar.remove(eslesen)
+            else:
+                uyarilar.append(f"karakter durumu reddedildi: {d['karakter']} üzerinde {esya!r} yok")
+        for esya in d["eklenen"]:
+            if not any(_ayni_esya(x, esya) for x in kd.esyalar):
+                kd.esyalar.append(esya)
+        if d["beden"]:
+            kd.beden = "" if kucult(d["beden"]).strip() in ("iyi", "sağlıklı", "iyileşti") else d["beden"]
+            kd.beden_sahnesi = sahne_no
+    return uyarilar
 
 
 def envanter_uygula(durum: Durum, envanter: dict) -> list[str]:

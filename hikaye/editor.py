@@ -170,6 +170,7 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         "zaman": str(sb.get("zaman") or "").strip(),
         "karakterler": [k for k in sb.get("karakterler") or [] if k in dunya.karakterler],
         "envanter": envanter_oku(sb.get("envanter")),
+        "karakterler_degisen": _karakter_degisenleri(sb.get("karakterler_degisen"), dunya),
     }
 
     return {
@@ -183,6 +184,19 @@ def editor_yanit_coz(metin: str, dunya: Dunya, durum: Durum) -> dict:
         "yazar_notu": str(veri.get("yazar_notu") or "").strip(),
         "otomatik": otomatik,
     }
+
+
+def _karakter_degisenleri(ham, dunya: Dunya) -> list[dict]:
+    """[{karakter, eklenen, cikan, beden}]: bilinmeyen karakter ve boş bildirim atılır."""
+    sonuc = []
+    for d in ham if isinstance(ham, list) else []:
+        if not isinstance(d, dict) or d.get("karakter") not in dunya.karakterler:
+            continue
+        e = envanter_oku(d)
+        beden = str(d.get("beden") or "").strip()
+        if e["eklenen"] or e["cikan"] or beden:
+            sonuc.append({"karakter": d["karakter"], "eklenen": e["eklenen"], "cikan": e["cikan"], "beden": beden})
+    return sonuc
 
 
 class Editor:
@@ -294,7 +308,9 @@ class Editor:
             bolumler.append("[KARAKTER UYARISI — son sahnede kartından saptı]\n" + "\n".join(satirlar))
 
         # Modele sorulmadan, doğrudan kodla bulunan sorunlar
-        kod_uyarilari = [u for u in son.uyarilar if "düzeltildi" not in u]
+        # Reddedilen karakter durumu bildirimleri editörün hatasıdır; yazarı yönlendirmez
+        kod_uyarilari = [u for u in son.uyarilar if "düzeltildi" not in u
+                         and not u.startswith("karakter durumu reddedildi")]
         konusanlar = {r.karakter for r in son.replikler}
         if son.karakterler and not konusanlar:
             susanlar = ", ".join(dunya.karakterler[k].ad for k in son.karakterler)

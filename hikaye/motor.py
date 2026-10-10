@@ -12,7 +12,8 @@ from dataclasses import asdict
 from . import istem
 from .bellek import Bellek
 from .dunya import Dunya
-from .durum import Durum, Replik, Sahne, durum_yukle, envanter_oku, envanter_uygula
+from .durum import (Durum, KarakterDurumu, Replik, Sahne, durum_yukle, envanter_oku, envanter_uygula,
+                    karakter_degisimi_uygula)
 from .editor import Editor
 from .getirim import belirtecle, kelimeler, kucult, ortusme
 from .kayit import Kayitci
@@ -374,6 +375,7 @@ class Motor:
                            esyalar=list(dunya.oyuncu_esyalar), akce=dunya.oyuncu_akce)
         for soru in dunya.vaatler:              # hikâyenin kalbindeki sorular baştan açık
             self.durum.vaat_ac(soru, 0)
+        self._karakter_durumlarini_tamamla()
         self.son_bulgular: dict | None = None     # editörün son sahne için bulguları
         self.son_kullanim: dict[str, tuple[int, int]] = {}
         self._tur_oncesi: tuple[Durum, str | None] | None = None   # "yeniden yaz" için
@@ -388,9 +390,15 @@ class Motor:
     def yukle(self, veri: dict) -> None:
         """kaydedilecek() çıktısından oyunu geri kurar; "yeniden yaz" da çalışmaya devam eder."""
         self.durum = durum_yukle(veri["durum"])
+        self._karakter_durumlarini_tamamla()     # eski kayıtlarda alan yok: dünyadan başlar
         onceki = veri.get("tur_oncesi")
         self._tur_oncesi = (durum_yukle(onceki["durum"]), onceki["eylem"]) if onceki else None
         self.son_bulgular = veri.get("son_bulgular")
+
+    def _karakter_durumlarini_tamamla(self) -> None:
+        for kid, k in self.dunya.karakterler.items():
+            if kid not in self.durum.karakter_durumlari:
+                self.durum.karakter_durumlari[kid] = KarakterDurumu(konum=k.yer, esyalar=list(k.esyalar))
 
     @property
     def hafif_yazar(self) -> bool:
@@ -430,7 +438,9 @@ class Motor:
         kullanici = istem.sahne_istemi(self.dunya, baglam, eylem, ek, zaman=self.durum.zaman,
                                        taninan=self.durum.taninan, eylemler=onceki_eylemler,
                                        esyalar=self.durum.esyalar, akce=self.durum.akce,
-                                       eylem_notlari=eylem_notlari)
+                                       eylem_notlari=eylem_notlari,
+                                       karakter_durumu=istem.karakter_su_an(self.dunya, self.durum,
+                                                                            baglam.karakter_idleri))
 
         yanitlar, hatalar = [], []
         istek = kullanici
@@ -493,6 +503,15 @@ class Motor:
         uyarilar.extend(f"eylem denetimi: {n}" for n in eylem_notlari)
         self.durum.mekan, self.durum.zaman = sahne.mekan, sahne.zaman
         uyarilar.extend(envanter_uygula(self.durum, envanter))
+        # Karakterlerin yeri: kod (sahnede görülenler sahnenin mekânında). Eşya ve beden: editör
+        # bildirir, kod doğrular.
+        for kid in sahne.karakterler:
+            kd = self.durum.karakter_durumlari.get(kid)
+            if kd is not None:
+                kd.konum, kd.goruldugu_sahne = sahne.mekan, no
+        if self.son_bulgular is not None:
+            uyarilar.extend(karakter_degisimi_uygula(
+                self.durum, self.son_bulgular["sahne_bilgisi"].get("karakterler_degisen", []), no))
         yeni_olgular = self.durum.olgular[olgu_sayisi:]
         ozet_yaniti = self.bellek.sahne_sonrasi(self.dunya, self.durum, self.ozet_llm)
 
@@ -519,6 +538,7 @@ class Motor:
                 envanter=cozum["envanter"],
                 esyalar=self.durum.esyalar,
                 akce=self.durum.akce,
+                karakter_durumlari=self.durum.karakter_durumlari,
                 uyarilar=uyarilar,
                 hatalar=hatalar,
                 baglam={

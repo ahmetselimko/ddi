@@ -29,13 +29,21 @@ class Karakter:
     # Manga için görünüş: sac, yuz, kiyafet, ayirt_edici (Türkçe, okumak için) ve prompt_en
     # (görsel modelin kullandığı İngilizce etiketler). İsteğe bağlı; yoksa manga.py üretir.
     gorunum: dict = field(default_factory=dict)
+    # Sabit özellikler (isteğe bağlı). esyalar: oyun başında üzerindekiler; oyun içinde değişen
+    # hâli durum.karakter_durumlari'nda. iliskiler: diğer karakterin id'si → ona bakışı.
+    hedef: str = ""
+    yapabilir: list[str] = field(default_factory=list)
+    yapamaz: list[str] = field(default_factory=list)
+    esyalar: list[str] = field(default_factory=list)
+    iliskiler: dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.gorunen_ad = self.gorunen_ad or self.ad
 
-    def kart(self, taninan: bool = True) -> str:
+    def kart(self, taninan: bool = True, adlar: dict | None = None) -> str:
         """İstemde kullanılan karakter kartı. taninan=False: oyuncu adını henüz bilmiyor;
-        yazar onu görünüşüyle ansın diye başlıkta görünen ad öne çıkar."""
+        yazar onu görünüşüyle ansın diye başlıkta görünen ad öne çıkar. adlar: id → ad
+        (ilişkilerde diğer karakterlerin adı yazılsın diye)."""
         if taninan:
             baslik = f"{self.ad} [{self.id}]"
         else:
@@ -47,6 +55,19 @@ class Karakter:
             f"  Kişilik: {self.kisilik}",
             f"  Konuşma: {self.konusma}",
         ]
+        gorunus = "; ".join(v for a, v in self.gorunum.items()
+                            if a in ("sac", "yuz", "kiyafet", "ayirt_edici") and v)
+        if gorunus:
+            satirlar.append(f"  Görünüş: {gorunus}")
+        if self.hedef:
+            satirlar.append(f"  Hedefi: {self.hedef}")
+        if self.yapabilir:
+            satirlar.append(f"  Yapabildikleri: {', '.join(self.yapabilir)}")
+        if self.yapamaz:
+            satirlar.append(f"  Yapamadıkları (bunları yapmaz; kalkışırsa beceremez): {', '.join(self.yapamaz)}")
+        if self.iliskiler:
+            adlar = adlar or {}
+            satirlar.append("  İlişkileri: " + "; ".join(f"{adlar.get(k, k)} — {v}" for k, v in self.iliskiler.items()))
         if self.imza:
             satirlar.append(f"  İmza sözleri (yalnızca bu karaktere ait, başkası kullanmaz): {', '.join(self.imza)}")
         if self.ornek_replikler:
@@ -92,6 +113,10 @@ class Dunya:
     para_birimi: str = "akçe"
     vaatler: list[str] = field(default_factory=list)   # oyun başında açık olan büyük sorular
     gorsel_en: str = ""    # manga: dünyanın dönemi/ortamı, her panele eklenen İngilizce etiketler
+
+    @property
+    def karakter_adlari(self) -> dict[str, str]:
+        return {k: c.ad for k, c in self.karakterler.items()}
 
     @property
     def acilis(self) -> Olgu:
@@ -184,6 +209,14 @@ def _dogrula(dunya: Dunya) -> None:
             raise DunyaHatasi(f"{k.id} karakterinin yeri tanımlı bir mekân değil: {k.yer}")
         if not isinstance(k.gorunum, dict) or not all(isinstance(v, str) for v in k.gorunum.values()):
             raise DunyaHatasi(f"{k.id} karakterinin gorunum alanı ad: metin çiftlerinden oluşmalı")
+        for alan in ("yapabilir", "yapamaz", "esyalar"):
+            if not isinstance(getattr(k, alan), list):
+                raise DunyaHatasi(f"{k.id} karakterinin {alan} alanı bir liste olmalı")
+        if not isinstance(k.iliskiler, dict):
+            raise DunyaHatasi(f"{k.id} karakterinin iliskiler alanı karakter_id: bakışı çiftlerinden oluşmalı")
+        tanimsiz = [i for i in k.iliskiler if i not in dunya.karakterler or i == k.id]
+        if tanimsiz:
+            raise DunyaHatasi(f"{k.id} karakterinin ilişkilerinde tanımsız karakter: {', '.join(map(str, tanimsiz))}")
 
     bilinen = set(dunya.karakterler) | set(dunya.mekanlar)
     gorulen: set[str] = set()

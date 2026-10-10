@@ -70,7 +70,8 @@ class Bellek:
         return Baglam(
             ozet=durum.ozet if self.ozet_acik else "",
             olgular=olgular,
-            karakter_kartlari=[dunya.karakterler[k].kart(taninan=k in durum.taninan) for k in karakter_idleri],
+            karakter_kartlari=[dunya.karakterler[k].kart(taninan=k in durum.taninan, adlar=dunya.karakter_adlari)
+                               for k in karakter_idleri],
             son_sahneler=[istem.sahne_metni(s, dunya) for s in son],
             olgu_idleri=olgu_idleri,
             karakter_idleri=karakter_idleri,

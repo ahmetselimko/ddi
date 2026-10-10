@@ -220,6 +220,7 @@
     <div class="sekmeler" role="tablist">
       <button class="sekme" role="tab" data-sekme="editor" aria-selected="true">Bu sahne</button>
       <button class="sekme" role="tab" data-sekme="vaatler" aria-selected="false">Vaatler</button>
+      <button class="sekme" role="tab" data-sekme="karakterler" aria-selected="false">Karakterler</button>
       <button class="sekme" role="tab" data-sekme="dunya" aria-selected="false">Dünya</button>
     </div>
     <div class="panel-ic" id="panel-ic"></div>
@@ -562,6 +563,14 @@ function paneliCiz() {
     ic.append(liste("Açık vaatler", v.acik_vaatler.map((x) => ({
       ust: x.metin, alt: `${x.yas} sahnedir açık · ${x.ilerleme} kez ilerledi` })), "mavi", "Açık vaat yok."));
     ic.append(liste("Çözülenler", v.cozulen_vaatler.map((x) => ({ ust: x.metin, alt: `${x.sahne}. sahnede çözüldü` })), "yesil", "Henüz yok."));
+  } else if (durum.sekme === "karakterler") {
+    ic.append(liste("Gördüğün karakterler", (v.karakterler || []).map((k) => ({
+      ust: k.ad,
+      alt: [`${k.konum}${k.goruldugu_sahne ? ` (sahne ${k.goruldugu_sahne})` : ""}`,
+            k.beden ? `bedeni: ${k.beden}` : "",
+            k.edindikleri.length ? `edindikleri: ${k.edindikleri.join(", ")}` : "",
+            k.tutum ? `son değişim: ${k.tutum}` : ""].filter(Boolean).join(" · "),
+    })), "", "Henüz kimseyle karşılaşmadın."));
   } else {
     ic.append(liste("Üzerindekiler", [`${(v.esyalar || []).join(", ") || "hiçbir eşya"} · ${v.akce ?? 0} ${v.para_birimi || "akçe"}`], ""));
     ic.append(liste("Adını bildiğin karakterler", v.taninan, "", "Henüz kimseyle tanışmadın."));
@@ -833,7 +842,8 @@ function dunyaListesiDoldur(a, secili) {
 /* ── Dünya kurucu: oyuncu kendi dünyasını yazar; yapay zekâ hiçbir alanı doldurmaz ── */
 const TURLER = ["Fantastik", "Bilimkurgu", "Tarihî", "Polisiye", "Korku", "Günümüz", "Masal", "Diğer"];
 const bosKarakter = () => ({ ad: "", kisa_ad: "", adsiz: false, gorunus: "", gorunen_ad: "", kisilik: "",
-                            konusma: "", imza: "", ornek: "", sir: "", yer: "" });
+                            konusma: "", imza: "", ornek: "", sir: "", yer: "", hedef: "", yapabildikleri: "",
+                            yapamadiklari: "", esyalar: "", iliskiler: "" });
 const bosTaslak = () => ({
   ad: "", tur: "Fantastik", ton: "", donem: "", yoklar: "", para_birimi: "akçe",
   oyuncu: { kim: "", neden: "", esyalar: "", para: 10 }, sir: "",
@@ -942,6 +952,12 @@ const ADIMLAR = [
       alan(kart, c, "ornek", "Ağzından çıkabilecek bir cümle", { yer: "ör. Otur, evlat. Önce çorba, sonra soru." });
       alan(kart, c, "sir", "Sırrı (oyuncu hemen öğrenmez)", { tur: "uzun", satir: 2 });
       alan(kart, c, "yer", "Genelde bulunduğu mekân", { tur: "secim", secenekler: mekanAdlari() });
+      alan(kart, c, "hedef", "Ne istiyor? (isteğe bağlı)", { yer: "ör. Hanını ve misafirlerini korumak" });
+      alan(kart, c, "yapabildikleri", "Yapabildikleri (virgülle)", { yer: "ör. yemek pişirir, kalabalığı susturur" });
+      alan(kart, c, "yapamadiklari", "Yapamadıkları (virgülle)", { yer: "ör. okuma yazma bilmez" });
+      alan(kart, c, "esyalar", "Üzerinde taşıdıkları (virgülle)", { yer: "ör. anahtar destesi" });
+      alan(kart, c, "iliskiler", "İlişkileri — her satıra \"Ad: bakışı\"", { tur: "uzun", satir: 2,
+        yer: "ör. Tekin: yaramaz ama iyi çocuk, ona yemek verir" });
     }, bosKarakter),
     dogrula: () => (taslak.karakterler.some((c) => c.ad.trim()) ? null : "En az bir karakter ekle.") },
   { baslik: "Kesin gerçekler",

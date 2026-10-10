@@ -243,6 +243,22 @@ Nehir Hanım'da; kervanda on bir deve vardı...), çünkü tutarlılık bunlara 
 ölçülecek. Karakterlerin konuşma üslupları da ölçülebilir işaretler taşıyor
 ("evlat", "abi/abla", "sevgili dostum").
 
+Karakterlerde isteğe bağlı sabit özellikler: `hedef`, `yapabilir`, `yapamaz`, `esyalar` (oyun
+başında üzerindekiler) ve `iliskiler` (diğer karakterin id'si → ona bakışı). Bunlar, `gorunum`'un
+Türkçe alanlarıyla birlikte karakter kartında yazara gider. Dünya kurucuda da sorulur; boş
+bırakılabilir.
+
+**Oyun içinde değişen karakter durumu.** Her karakterin son bilinen yeri, üzerindekiler ve bedeni
+(ör. "sol kolu sarılı") tutulur ve yazara "son bilinen durum (sahne N)" olarak gider.
+- **Yer:** kod belirler; sahnede görülen karakter o sahnenin mekânındadır.
+- **Eşya ve beden:** editör bildirir, kod doğrular. Karakterde olmayan eşya çıkamaz; reddedilen
+  bildirim yalnızca kayda geçer.
+- Editör panelindeki **Karakterler** sekmesi, görülen karakterlerin bu durumunu gösterir. Sırlar
+  ve başlangıç eşyaları gösterilmez.
+
+İlk 5 turluk denemede yer takibi doğruydu, ama editör karakterlerin eşya değişimini hiç
+bildirmedi: oyuncunun verdiği pusula oyuncudan düştü, kadına geçmedi. Eşya devri henüz güvenilir değil.
+
 Başka bir dünya için aynı biçimde yeni bir YAML yazıp `--dunya` ile verin. Karakterlerde
 `adlar` alanına **yalnızca özel adlar** yazın: "yabancı", "çocuk" gibi sıradan kelimeler her
 geçtikleri yerde o karakter sanılır. `gorunen_ad`, oyuncu tanışmadan önceki etikettir. Manga için isteğe bağlı alanlar:

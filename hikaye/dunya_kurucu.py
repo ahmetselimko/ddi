@@ -160,9 +160,31 @@ def cevaplardan_dunya(c: dict) -> dict:
         }
         if mekan_bul(k.get("yer")):
             karakter["yer"] = mekan_bul(k.get("yer"))
+        if str(k.get("hedef") or "").strip():
+            karakter["hedef"] = str(k["hedef"]).strip()
+        for alan, hedef_alan in (("yapabildikleri", "yapabilir"), ("yapamadiklari", "yapamaz"), ("esyalar", "esyalar")):
+            liste = _virgullu(k.get(alan))
+            if liste:
+                karakter[hedef_alan] = liste
         karakterler.append(karakter)
         if str(k.get("sir") or "").strip():
             sir_olgulari.append((f"{k['ad'].strip()} hakkında (henüz kimse bilmiyor): {k['sir'].strip()}", [kid]))
+
+    # İlişkiler: "Nehir Hanım: annesi gibi" satırlarındaki adlar karakter id'sine çevrilir
+    ad_kimligi = {}
+    for cevap, kar in zip(karakter_cevaplari, karakterler):
+        for ad_ in [kar["ad"], str(cevap.get("kisa_ad") or "")] + kar["adlar"]:
+            if ad_.strip():
+                ad_kimligi.setdefault(kucult(ad_.strip()), kar["id"])
+    for cevap, kar in zip(karakter_cevaplari, karakterler):
+        iliskiler = {}
+        for satir in _satirlar(cevap.get("iliskiler")):
+            ad_, _, bakis = satir.partition(":")
+            hedef_id = ad_kimligi.get(kucult(ad_.strip()))
+            if hedef_id and hedef_id != kar["id"] and bakis.strip():
+                iliskiler[hedef_id] = bakis.strip()
+        if iliskiler:
+            kar["iliskiler"] = iliskiler
 
     # Kanon: kesin gerçekler + karakter sırları; ilgili alanı sonra metinden çıkarılır
     gercekler = [(g, []) for g in _satirlar(c.get("gercekler"))] + sir_olgulari
@@ -268,6 +290,9 @@ def taslagi_duzenle(ham: dict) -> dict:
             "kisilik": _metin(k.get("kisilik"), " "), "konusma": _metin(k.get("konusma"), " "),
             "imza": _metin(k.get("imza"), ", "), "ornek": _metin(k.get("ornek"), "\n"),
             "sir": _metin(k.get("sir"), " "), "yer": _metin(k.get("yer"), " "),
+            "hedef": _metin(k.get("hedef"), " "), "yapabildikleri": _metin(k.get("yapabildikleri"), ", "),
+            "yapamadiklari": _metin(k.get("yapamadiklari"), ", "), "esyalar": _metin(k.get("esyalar"), ", "),
+            "iliskiler": _metin(k.get("iliskiler"), "\n"),
         } for k in ham.get("karakterler") or [] if isinstance(k, dict)],
         "gercekler": _metin(ham.get("gercekler"), "\n"),
         "acilis": {"mekan": _metin(acilis.get("mekan"), " "), "zaman": _metin(acilis.get("zaman"), " "),
