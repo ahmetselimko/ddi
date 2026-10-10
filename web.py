@@ -32,7 +32,7 @@ from hikaye.durum import durum_yukle
 from hikaye.dunya_kurucu import KurucuHatasi, cevaplardan_dunya, dunya_kaydet, ipuclari, taslak_uret
 from hikaye.editor import MODLAR, Editor
 from hikaye.kayit import KAYIT_KIMLIGI, Kayitci, oyun_kaydet, oyun_oku, oyun_sil, oyunlari_listele
-from hikaye.llm import YAZAR_SECENEKLERI, env_yukle, llm_olustur
+from hikaye.llm import FIYATLAR, YAZAR_SECENEKLERI, env_yukle, llm_olustur
 from hikaye.manga import STILLER as MANGA_STILLERI
 from hikaye.manga import MangaUretici, hazir_kaynaklar, servis_olustur
 from hikaye.motor import ETIKETLI_SATIR, Motor, YanitHatasi
@@ -43,15 +43,6 @@ DUNYA_KLASORU = KOK / "dunyalar"
 EN_UZUN_EYLEM = 300
 MANGA_DOSYASI = re.compile(r"^[\w-]{1,40}\.png$")
 MANGA_KAPALI = {"acik": False, "kaynak": "yerel", "stil": "siyahbeyaz"}
-
-# Ücretli katman, metin, 1M token başına dolar (girdi, çıktı). Kaynak: ai.google.dev/gemini-api/docs/pricing
-FIYATLAR = {
-    "gemini-2.5-flash": (0.30, 2.50),
-    "gemini-2.5-flash-lite": (0.10, 0.40),
-    "gemini-3.1-flash-lite": (0.25, 1.50),
-    "gemini-3.8-flash": (0.75, 3.75),     # 31.12.2026'ya kadar geçerli fiyat
-}
-
 
 def parcalara_bol(metin: str) -> list[dict]:
     """Motorun kurduğu sahne metnini arayüz için anlatım/replik parçalarına ayırır."""

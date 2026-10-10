@@ -120,6 +120,26 @@ Yazar, editör ve özet farklı modellerle çalışabilir (`--editor-model`, `--
 ya da `.env` içinde `EDITOR_MODEL`, `OZET_MODEL`). Özet basit bir iş, ucuz model yeter;
 editör ise ölçümlerin kaynağı, zayıf model ölçümü de zayıflatır.
 
+## Ölçüm
+
+```bash
+python olcum.py rapor                       # oturumlar/*.jsonl → tutarlılık raporu (ücretsiz)
+python olcum.py enjeksiyon --ornek 25       # editörü bilinen çelişkilerle sına (ücretli, ~$0,25)
+python olcum.py enjeksiyon --onceki olcumler/ham/<önceki>.json   # aynı sahne ve cümlelerle tekrar
+```
+
+- **rapor:** Kayıtlardaki editör ve kod bulgularını sayar. Bunlar editörün *dediği* şeylerdir:
+  10 bin sözcük başına çelişki (CED), 10 turluk dilimler, karakter sapmaları, kod uyarıları
+  türlerine göre, editörün başarısız olduğu turlar, maliyet.
+- **enjeksiyon:** Editörün ne kadar *doğru* dediğini ölçer. Gerçek sahnelere sahneyle ilgili bir
+  dünya olgusuyla çelişen tek bir cümle eklenir; editörün bunu yakalayıp yakalamadığına ve
+  dokunulmamış sahnede alarm verip vermediğine bakılır. Ayrıntılar sahne metinleri içerdiği için
+  `olcumler/ham/` altına yazılır (git'e girmez).
+
+Sonuçlar ve sınırları: [docs/OLCUM.md](docs/OLCUM.md). Özetle: oyundaki ayarda editör eklenen
+açık çelişkilerin %83-88'ini yakalıyor. Ama aynı test iki kez koşulduğunda kararların bir kısmı
+değişiyor; 25 sahnelik bir testte 10 puana yakın fark gürültüdür.
+
 ## Bellek
 
 | `--bellek` | Modele verilen |
@@ -278,9 +298,8 @@ Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görü
 - Ara sıra geçerli yanıt veremiyor; o tur editörsüz geçiyor.
 
 **Ölçüm** (projenin amaçlarından biri)
-- Tur kayıtları tutuluyor, ama kayıtlardan çelişki, sapma, sızıntı ve vaat sayılarını
-  çıkaran bir rapor betiği yok.
-- Editörün kendi doğruluğu elle kontrol edilmedi; editörün bulguları şimdilik "doğru" kabul ediliyor.
+- Editörün doğruluğu yalnızca küçük bir enjeksiyon deneyiyle ölçüldü (25 sahne, tek cümlelik
+  açık çelişkiler, elle doğrulanmamış). İnsan etiketi yok.
 - Bellek seçenekleri (`tam`, `ozet`, `kanon`...) karşılaştırılmadı.
 
 **Kullanım**
@@ -311,7 +330,7 @@ Proje çalışıyor ve oynanabilir, ama bitmiş değil. Test oyunlarında görü
 - [x] Web arayüzü, yeniden yaz, yazar modeli seçeneği
 - [x] Dünya kurucu: oyuncu fikrini yazar, model dünyayı kurar
 - [x] Kayıt ve devam
-- [ ] Oturum raporu: bir oyunun kaydından çelişki, sapma, sızıntı ve vaat sayılarını çıkaran betik
+- [x] Ölçüm: kayıtlardan tutarlılık raporu, editörü bilinen çelişkilerle sınayan enjeksiyon deneyi
 - [ ] Editörün doğruluğunun elle kontrolü (~100 karar)
 - [ ] Editörün en çok hata yaptığı iş için küçük, kendi eğittiğimiz bir model (ör. BERTurk ile
   çelişki tespiti); ~20-30 oyun ve 200-300 elle düzeltilmiş örnek biriktikten sonra
